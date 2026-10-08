@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import AuthPanel from "@/components/auth/AuthPanel";
+import AuthPanel from "@/features/auth/components/AuthPanel";
 
 export const metadata: Metadata = {
   title: "SparkGo | Log in or sign up",

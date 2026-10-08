@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ComponentProps } from "react";
-import { playSfx, type SfxKind } from "@/lib/sfx";
+import { playSfx, type SfxKind } from "@/utils/sfx";
 
 type Props = ComponentProps<typeof Link> & { sfx?: SfxKind };
 

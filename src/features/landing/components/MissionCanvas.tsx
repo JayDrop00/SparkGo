@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { THEMES, getTheme, subscribe, type ThemeName } from "@/lib/prefs";
+import { THEMES, getTheme, subscribe, type ThemeName } from "@/utils/prefs";
 
 type Particle = {
   x: number;

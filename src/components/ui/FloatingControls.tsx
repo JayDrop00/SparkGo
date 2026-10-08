@@ -9,8 +9,8 @@ import {
   setTheme,
   subscribe,
   type ThemeName,
-} from "@/lib/prefs";
-import { playSfx } from "@/lib/sfx";
+} from "@/utils/prefs";
+import { playSfx } from "@/utils/sfx";
 import HudCorners from "./HudCorners";
 import Icon from "./Icon";
 

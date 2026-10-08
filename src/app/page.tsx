@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import Testimonials from "../components/landing/Testimonials";
-import MissionCanvas from "../components/landing/MissionCanvas";
-import HudCorners from "../components/ui/HudCorners";
-import Icon, { type IconName } from "../components/ui/Icon";
-import LaunchLink from "../components/ui/LaunchLink";
+import Testimonials from "@/features/landing/components/Testimonials";
+import MissionCanvas from "@/features/landing/components/MissionCanvas";
+import HudCorners from "@/components/ui/HudCorners";
+import Icon, { type IconName } from "@/components/ui/Icon";
+import LaunchLink from "@/components/ui/LaunchLink";
 
 export const metadata: Metadata = {
   title: "SparkGo — Task Manager",

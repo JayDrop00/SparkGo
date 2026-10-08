@@ -4,14 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
-import { playSfx, type SfxKind } from "@/lib/sfx";
-import HudCorners from "../ui/HudCorners";
-import Icon from "../ui/Icon";
+import { playSfx, type SfxKind } from "@/utils/sfx";
+import { createClient } from "@/lib/supabase/client";
+import { safeNext } from "@/utils/safe-next";
+import HudCorners from "@/components/ui/HudCorners";
+import Icon from "@/components/ui/Icon";
 
 type AuthMode = "login" | "signup";
 
-function modeHref(mode: AuthMode) {
-  return `/auth?mode=${mode}`;
+function modeHref(mode: AuthMode, next: string | null) {
+  const params = new URLSearchParams({ mode });
+  if (next) params.set("next", next);
+  return `/auth?${params}`;
 }
 
 const focusRing =
@@ -21,7 +25,15 @@ const inputClass = `w-full rounded-xl border border-ink-border bg-ink-input px-4
 
 const primaryCta = `group flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-br from-theme-accent to-theme-secondary px-4 py-3.5 font-display text-sm font-extrabold uppercase tracking-wider text-ink-base shadow-[0_0_20px_rgb(var(--theme-rgb)/0.3)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_30px_rgb(var(--theme-rgb)/0.6)] active:translate-y-px ${focusRing}`;
 
-const googleCta = `inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-ink-border bg-ink-card/70 px-4 font-display text-sm font-extrabold uppercase tracking-wider text-slate-200 backdrop-blur transition-colors hover:border-theme-accent hover:bg-ink-border ${focusRing}`;
+const googleCta = `inline-flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-ink-border bg-ink-card/70 px-4 font-display text-sm font-extrabold uppercase tracking-wider text-slate-200 backdrop-blur transition-colors hover:border-theme-accent hover:bg-ink-border disabled:opacity-60 ${focusRing}`;
+
+type Notice = { kind: "info" | "error" | "success"; text: string };
+
+const noticeClass: Record<Notice["kind"], string> = {
+  info: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  error: "border-red-400/30 bg-red-400/10 text-red-300",
+  success: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+};
 
 /** Multicolor Google "G" (Icon.tsx is stroke/currentColor-only). */
 function GoogleGlyph({ className = "h-[18px] w-[18px]" }: { className?: string }) {
@@ -40,31 +52,95 @@ function AuthContent() {
   const searchParams = useSearchParams();
   const param = searchParams.get("mode");
   const mode: AuthMode = param === "signup" ? "signup" : "login";
-  const [notice, setNotice] = useState("");
+  const nextParam = searchParams.get("next");
+  const target = safeNext(nextParam);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const isSignup = mode === "signup";
 
   // Keep the URL explicit: bare or invalid ?mode= always normalizes to ?mode=login.
   useEffect(() => {
     if (param !== "login" && param !== "signup") {
-      router.replace(modeHref("login"), { scroll: false });
+      router.replace(modeHref("login", nextParam), { scroll: false });
     }
-  }, [param, router]);
+  }, [param, nextParam, router]);
 
   function switchMode(nextMode: AuthMode, sfx: SfxKind = "click") {
     playSfx(sfx);
-    setNotice("");
-    router.replace(modeHref(nextMode), { scroll: false });
+    setNotice(null);
+    router.replace(modeHref(nextMode, nextParam), { scroll: false });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting) return;
     playSfx("launch");
-    setNotice("Your account service isn’t connected yet.");
+    setNotice(null);
+    setSubmitting(true);
+
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "");
+    const password = String(form.get("password") ?? "");
+    const supabase = createClient();
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(target)}`;
+
+    try {
+      if (isSignup) {
+        const fullName = String(form.get("name") ?? "");
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: fullName },
+            emailRedirectTo: redirectTo,
+          },
+        });
+        if (error) {
+          setNotice({ kind: "error", text: error.message });
+          return;
+        }
+        if (data.session) {
+          router.replace(target);
+          router.refresh();
+          return;
+        }
+        setNotice({
+          kind: "info",
+          text: "Check your email to confirm your account, then log in.",
+        });
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setNotice({ kind: "error", text: error.message });
+        return;
+      }
+      router.replace(target);
+      router.refresh();
+    } catch {
+      setNotice({ kind: "error", text: "Something went wrong. Please try again." });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function handleGoogle() {
+  async function handleGoogle() {
     playSfx("click");
-    setNotice("Google sign-in isn’t connected yet.");
+    setNotice(null);
+    setSubmitting(true);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(target)}`,
+      },
+    });
+    if (error) {
+      setNotice({ kind: "error", text: error.message });
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -160,7 +236,7 @@ function AuthContent() {
                       onClick={(event) => {
                         event.preventDefault();
                         playSfx("click");
-                        setNotice("Password reset isn’t connected yet.");
+                        setNotice({ kind: "info", text: "Password reset isn’t connected yet." });
                       }}
                       className={`text-xs font-semibold text-theme-accent transition hover:text-white ${focusRing}`}
                     >
@@ -202,10 +278,20 @@ function AuthContent() {
                 </label>
               )}
 
-              <button type="submit" className={primaryCta}>
-                <Icon name="rocket" className="h-4 w-4 motion-safe:group-hover:animate-thrust" />
-                {isSignup ? "Create your account" : "Log in to SparkGo"}
-                <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
+              <button
+                type="submit"
+                disabled={submitting}
+                className={`${primaryCta} disabled:cursor-wait disabled:opacity-70`}
+              >
+                {submitting ? (
+                  isSignup ? "Creating account…" : "Logging in…"
+                ) : (
+                  <>
+                    <Icon name="rocket" className="h-4 w-4 motion-safe:group-hover:animate-thrust" />
+                    {isSignup ? "Create your account" : "Log in to SparkGo"}
+                    <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">→</span>
+                  </>
+                )}
               </button>
 
               <div className="flex items-center gap-3 py-1" aria-hidden="true">
@@ -214,13 +300,13 @@ function AuthContent() {
                 <span className="h-px flex-1 bg-ink-border" />
               </div>
 
-              <button type="button" onClick={handleGoogle} className={googleCta}>
+              <button type="button" onClick={handleGoogle} disabled={submitting} className={googleCta}>
                 <GoogleGlyph />
                 Continue with Google
               </button>
               {notice && (
-                <p role="status" className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2.5 text-center font-data text-xs text-amber-300">
-                  {notice}
+                <p role="status" className={`rounded-lg border px-3 py-2.5 text-center font-data text-xs ${noticeClass[notice.kind]}`}>
+                  {notice.text}
                 </p>
               )}
             </form>

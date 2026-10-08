@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { playSfx } from "@/lib/sfx";
-import HudCorners from "../ui/HudCorners";
-import Icon from "../ui/Icon";
+import { playSfx } from "@/utils/sfx";
+import HudCorners from "@/components/ui/HudCorners";
+import Icon from "@/components/ui/Icon";
 
 type Review = {
   key: string;
