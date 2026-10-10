@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import GroupBoard from "@/features/grouped-personal-task/components/GroupBoard";
 import { getBoard } from "@/features/grouped-personal-task/services/group.service";
-import { createClient } from "@/lib/supabase/server";
+import { getClaimsCached } from "@/features/auth/services/session.service";
 
 export const metadata: Metadata = {
   title: "My Task — SparkGo",
@@ -15,9 +15,8 @@ export const instant = false;
 export default async function TasksPage() {
   await connection();
 
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
-  const claims = data?.claims;
+  // Shared with the (app) layout via React cache() — one getClaims() per request.
+  const claims = await getClaimsCached();
   if (!claims) {
     redirect("/auth?mode=login&next=/tasks");
   }

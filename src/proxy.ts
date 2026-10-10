@@ -29,9 +29,11 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // Refresh the session and verify the JWT before any route code runs.
-  const { data } = await supabase.auth.getClaims();
-  const isSignedIn = Boolean(data?.claims);
+  // Cheap cookie-based session check for redirects (auto-refreshes if the
+  // token is expired). Verified claims are resolved once in the (app) layout;
+  // RLS remains the real security boundary.
+  const { data } = await supabase.auth.getSession();
+  const isSignedIn = Boolean(data?.session);
 
   const { pathname, search } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.has(pathname);
