@@ -50,9 +50,11 @@
   --theme-rgb: 192 132 252;
 }
 
-/* Glassmorphic HUD panel (corner brackets come from <HudCorners />) */
+/* Glassmorphic HUD panel (corner brackets come from <HudCorners />).
+   No `position` here: this rule is unlayered and would beat Tailwind's
+   layered `.absolute`/`.relative` utilities. Elements that host absolutely
+   positioned children set their own position class instead. */
 .hud-card {
-  position: relative;
   background: rgb(11 19 28 / 0.82);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
@@ -79,6 +81,11 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
+}
+
+body {
+  overflow-x: clip;
 }
 @media (prefers-reduced-motion: reduce) {
   html {

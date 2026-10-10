@@ -171,7 +171,7 @@ export default function Home() {
               {features.map((feature) => (
                 <article
                   key={feature.title}
-                  className="hud-card rounded-2xl p-6 transition-colors duration-300 hover:border-theme-accent/50"
+                  className="hud-card relative rounded-2xl p-6 transition-colors duration-300 hover:border-theme-accent/50"
                 >
                   <HudCorners />
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-theme-accent/30 bg-theme-accent/10 text-theme-accent">
