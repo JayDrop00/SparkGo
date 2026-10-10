@@ -415,7 +415,7 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
   );
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 max-w-full space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h2 className="font-display text-xl font-extrabold tracking-wide text-white">
@@ -474,17 +474,19 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
           onDragEnd={handleDragEnd}
           onDragCancel={() => updateDragPreview(null)}
         >
-          <div className="flex items-start gap-4 overflow-x-auto pb-6">
-            <UngroupedSection
-              tasks={displayedBoard.ungrouped}
-              completedTasks={displayedBoard.ungroupedCompleted}
-              onEditTask={openEditTask}
-              onDeleteTask={setTaskToDelete}
-              onToggleComplete={(task) =>
-                void board.setTaskCompleted(task.id, task.completedAt === null)
-              }
-              onAddTask={() => openCreateTask(null)}
-            />
+          <div className="flex max-w-full items-start gap-4 overflow-x-auto pb-6">
+            <div className="sticky left-0 z-30 shrink-0 self-start rounded-3xl bg-ink-base pr-2 shadow-[8px_0_16px_-8px_rgb(0_0_0/0.6)]">
+              <UngroupedSection
+                tasks={displayedBoard.ungrouped}
+                completedTasks={displayedBoard.ungroupedCompleted}
+                onEditTask={openEditTask}
+                onDeleteTask={setTaskToDelete}
+                onToggleComplete={(task) =>
+                  void board.setTaskCompleted(task.id, task.completedAt === null)
+                }
+                onAddTask={() => openCreateTask(null)}
+              />
+            </div>
 
             <SortableContext
               items={groupSortIds}
