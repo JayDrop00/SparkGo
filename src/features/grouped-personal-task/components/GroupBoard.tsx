@@ -1,15 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   closestCorners,
   DndContext,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
   type Announcements,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   horizontalListSortingStrategy,
@@ -18,10 +22,10 @@ import {
 } from "@dnd-kit/sortable";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
+import DropdownMenu from "@/components/ui/DropdownMenu";
 import EmptyState from "@/components/ui/EmptyState";
 import Icon from "@/components/ui/Icon";
 import { Field, Input } from "@/components/ui/Input";
-import { focusRing } from "@/components/ui/styles";
 import TaskFormDialog from "@/features/tasks/components/TaskFormDialog";
 import type { TaskResponseDto } from "@/features/tasks/dto/task-response.dto";
 import type { BoardResponseDto } from "../dto/board-response.dto";
@@ -32,10 +36,13 @@ import GroupSection from "./GroupSection";
 import UngroupedSection from "./UngroupedSection";
 
 function findTask(board: BoardResponseDto, taskId: string): TaskResponseDto | null {
-  const inUngrouped = board.ungrouped.find((task) => task.id === taskId);
+  const inUngrouped = board.ungrouped.find((task) => task.id === taskId)
+    ?? board.ungroupedCompleted.find((task) => task.id === taskId);
   if (inUngrouped) return inUngrouped;
   for (const group of board.groups) {
-    const task = group.tasks.find((item) => item.id === taskId);
+    const task =
+      group.tasks.find((item) => item.id === taskId) ??
+      group.completedTasks.find((item) => item.id === taskId);
     if (task) return task;
   }
   return null;
@@ -43,6 +50,69 @@ function findTask(board: BoardResponseDto, taskId: string): TaskResponseDto | nu
 
 function findGroup(board: BoardResponseDto, groupId: string): GroupResponseDto | null {
   return board.groups.find((group) => group.id === groupId) ?? null;
+}
+
+function previewTaskMove(
+  board: BoardResponseDto,
+  taskId: string,
+  targetGroupId: string | null,
+  beforeTaskId: string | null,
+  afterTaskId: string | null,
+): BoardResponseDto {
+  const next: BoardResponseDto = {
+    groups: board.groups.map((group) => ({
+      ...group,
+      tasks: [...group.tasks],
+      completedTasks: [...group.completedTasks],
+    })),
+    ungrouped: [...board.ungrouped],
+    ungroupedCompleted: [...board.ungroupedCompleted],
+  };
+  let movingTask: TaskResponseDto | undefined;
+
+  const removeFrom = (tasks: TaskResponseDto[]) => {
+    const index = tasks.findIndex((task) => task.id === taskId);
+    if (index < 0) return;
+    [movingTask] = tasks.splice(index, 1);
+  };
+
+  removeFrom(next.ungrouped);
+  if (!movingTask) removeFrom(next.ungroupedCompleted);
+  for (const group of next.groups) {
+    if (!movingTask) removeFrom(group.tasks);
+    if (!movingTask) removeFrom(group.completedTasks);
+    group.taskCount = group.tasks.length + group.completedTasks.length;
+  }
+  if (!movingTask) return board;
+
+  const placed = { ...movingTask, groupId: targetGroupId };
+  const targetGroup = targetGroupId
+    ? next.groups.find((group) => group.id === targetGroupId)
+    : null;
+  const targetTasks = targetGroup?.tasks ?? next.ungrouped;
+  const beforeIndex = beforeTaskId
+    ? targetTasks.findIndex((task) => task.id === beforeTaskId)
+    : -1;
+  const afterIndex = afterTaskId
+    ? targetTasks.findIndex((task) => task.id === afterTaskId)
+    : -1;
+
+  if (beforeIndex >= 0) targetTasks.splice(beforeIndex, 0, placed);
+  else if (afterIndex >= 0) targetTasks.splice(afterIndex + 1, 0, placed);
+  else targetTasks.push(placed);
+  if (targetGroup) targetGroup.taskCount = targetGroup.tasks.length + targetGroup.completedTasks.length;
+
+  const sameOrder = (left: TaskResponseDto[], right: TaskResponseDto[]) =>
+    left.length === right.length && left.every((task, index) => task.id === right[index]?.id);
+  const unchanged =
+    sameOrder(next.ungrouped, board.ungrouped) &&
+    sameOrder(next.ungroupedCompleted, board.ungroupedCompleted) &&
+    next.groups.every((group, index) =>
+      sameOrder(group.tasks, board.groups[index].tasks) &&
+      sameOrder(group.completedTasks, board.groups[index].completedTasks),
+    );
+  if (unchanged) return board;
+  return next;
 }
 
 type FormState = {
@@ -62,11 +132,50 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
   const [taskToDelete, setTaskToDelete] = useState<TaskResponseDto | null>(null);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [dragPreview, setDragPreview] = useState<BoardResponseDto | null>(null);
+  const dragPreviewRef = useRef<BoardResponseDto | null>(null);
+  const updateDragPreview = (preview: BoardResponseDto | null) => {
+    dragPreviewRef.current = preview;
+    setDragPreview(preview);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Group drags must only collide with group columns (their bucket droppables
+  // fill most of a column and would otherwise win closestCorners); task drags
+  // collide with task rows and buckets, never with group columns.
+  // For group drags, pointerWithin flips the target as soon as the cursor
+  // enters a neighboring column (~16px) instead of closestCorners' static-rect
+  // midpoint threshold (~half a column width). The closestCorners fallback
+  // always includes every group section so `over` stays valid mid-drag —
+  // a null `over` would stop the dragged column from following the cursor.
+  const collisionDetection: CollisionDetection = (args) => {
+    const isGroupDrag = String(args.active.id).startsWith("group:");
+    if (isGroupDrag) {
+      const groups = args.droppableContainers.filter((container) =>
+        String(container.id).startsWith("group:"),
+      );
+      if (args.pointerCoordinates) {
+        const hits = pointerWithin({
+          ...args,
+          droppableContainers: groups.filter(
+            (container) => container.id !== args.active.id,
+          ),
+        });
+        if (hits.length) return hits;
+      }
+      return closestCorners({ ...args, droppableContainers: groups });
+    }
+    return closestCorners({
+      ...args,
+      droppableContainers: args.droppableContainers.filter(
+        (container) => !String(container.id).startsWith("group:"),
+      ),
+    });
+  };
 
   const describe = (id: string): string => {
     if (id.startsWith("task:")) {
@@ -97,29 +206,66 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
       `Dragging was cancelled. ${describe(String(active.id))} returned to its original position.`,
   };
 
-  function handleDragEnd({ active, over }: DragEndEvent) {
-    if (!over) return;
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) {
+      updateDragPreview(null);
+      return;
+    }
     const activeId = String(active.id);
     const overId = String(over.id);
 
     if (activeId.startsWith("group:")) {
-      if (!overId.startsWith("group:")) return;
       const activeGroupId = activeId.slice(6);
-      const overGroupId = overId.slice(6);
-      if (activeGroupId === overGroupId) return;
+      const overGroupId = overId.startsWith("group:")
+        ? overId.slice(6)
+        : null;
+
+      if (!overGroupId || overGroupId === activeGroupId) return;
       const ordered = board.board.groups.map((group) => group.id);
       const from = ordered.indexOf(activeGroupId);
       const to = ordered.indexOf(overGroupId);
       if (from < 0 || to < 0) return;
       ordered.splice(from, 1);
       ordered.splice(to, 0, activeGroupId);
+      updateDragPreview(null);
       void board.applyGroupOrder(ordered);
       return;
     }
 
-    if (!activeId.startsWith("task:")) return;
+    if (!activeId.startsWith("task:")) {
+      updateDragPreview(null);
+      return;
+    }
     const taskId = activeId.slice(5);
-    if (taskId === overId.slice(5)) return;
+    if (overId === activeId) {
+      const preview = dragPreviewRef.current;
+      const previewTask = preview ? findTask(preview, taskId) : null;
+      const previewGroupId = previewTask?.groupId ?? null;
+      const previewList = previewGroupId
+        ? findGroup(preview!, previewGroupId)?.tasks ?? []
+        : preview?.ungrouped ?? [];
+      const previewIndex = previewList.findIndex((task) => task.id === taskId);
+      const originalTask = findTask(board.board, taskId);
+      const originalList = originalTask?.groupId
+        ? findGroup(board.board, originalTask.groupId)?.tasks ?? []
+        : board.board.ungrouped;
+      const originalIndex = originalList.findIndex((task) => task.id === taskId);
+      updateDragPreview(null);
+
+      if (
+        previewTask &&
+        (previewGroupId !== (originalTask?.groupId ?? null) || previewIndex !== originalIndex)
+      ) {
+        void board.moveTaskTo({
+          taskId,
+          targetGroupId: previewGroupId,
+          beforeTaskId: previewList[previewIndex + 1]?.id ?? null,
+          afterTaskId: previewList[previewIndex - 1]?.id ?? null,
+        });
+      }
+      return;
+    }
 
     let targetGroupId: string | null = null;
     let beforeTaskId: string | null = null;
@@ -130,10 +276,16 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
       targetGroupId = bucket === "ungrouped" ? null : bucket;
     } else if (overId.startsWith("group:")) {
       targetGroupId = overId.slice(6);
-      if (!findGroup(board.board, targetGroupId)) return;
+      if (!findGroup(board.board, targetGroupId)) {
+        updateDragPreview(null);
+        return;
+      }
     } else if (overId.startsWith("task:")) {
       const overTask = findTask(board.board, overId.slice(5));
-      if (!overTask) return;
+      if (!overTask) {
+        updateDragPreview(null);
+        return;
+      }
       targetGroupId = overTask.groupId;
       const list = targetGroupId
         ? (findGroup(board.board, targetGroupId)?.tasks ?? [])
@@ -165,10 +317,72 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
         }
       }
     } else {
+      updateDragPreview(null);
       return;
     }
 
+    if (!beforeTaskId && !afterTaskId) {
+      const current = findTask(board.board, taskId);
+      if (current && (current.groupId ?? null) === targetGroupId) {
+        updateDragPreview(null);
+        return;
+      }
+    }
+
+    updateDragPreview(null);
     void board.moveTaskTo({ taskId, targetGroupId, beforeTaskId, afterTaskId });
+  }
+
+  function handleDragStart({ active }: DragStartEvent) {
+    if (String(active.id).startsWith("task:")) {
+      updateDragPreview(board.board);
+    }
+  }
+
+  function handleDragOver({ active, over }: DragOverEvent) {
+    const activeId = String(active.id);
+    if (!activeId.startsWith("task:") || !over || over.id === active.id) return;
+
+    const current = dragPreviewRef.current ?? board.board;
+    const taskId = activeId.slice(5);
+    const overId = String(over.id);
+    let targetGroupId: string | null;
+    let beforeTaskId: string | null = null;
+    let afterTaskId: string | null = null;
+
+    if (overId.startsWith("bucket:")) {
+      const bucketId = overId.slice(7);
+      targetGroupId = bucketId === "ungrouped" ? null : bucketId;
+    } else if (overId.startsWith("task:")) {
+      const overTask = findTask(current, overId.slice(5));
+      if (!overTask) return;
+      targetGroupId = overTask.groupId;
+      const list = targetGroupId
+        ? findGroup(current, targetGroupId)?.tasks ?? []
+        : current.ungrouped;
+      const overIndex = list.findIndex((task) => task.id === overTask.id);
+      const activeIndex = list.findIndex((task) => task.id === taskId);
+      const activeRect = active.rect.current.translated ?? active.rect.current.initial;
+      const insertAfter = activeRect
+        ? activeRect.top + activeRect.height / 2 > over.rect.top + over.rect.height / 2
+        : activeIndex >= 0 && activeIndex < overIndex;
+      const rest = list.filter((task) => task.id !== taskId);
+      const overAfterRemoval = rest.findIndex((task) => task.id === overTask.id);
+      if (overAfterRemoval >= 0) {
+        if (insertAfter) {
+          afterTaskId = overTask.id;
+          beforeTaskId = rest[overAfterRemoval + 1]?.id ?? null;
+        } else {
+          beforeTaskId = overTask.id;
+          afterTaskId = rest[overAfterRemoval - 1]?.id ?? null;
+        }
+      }
+    } else {
+      return;
+    }
+
+    const preview = previewTaskMove(current, taskId, targetGroupId, beforeTaskId, afterTaskId);
+    if (preview !== current) updateDragPreview(preview);
   }
 
   const openCreateTask = (groupId: string | null) =>
@@ -188,8 +402,12 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
     setNewGroupName("");
   };
 
-  const groupList = board.board.groups;
-  const isEmpty = groupList.length === 0 && board.board.ungrouped.length === 0;
+  const displayedBoard = dragPreview ?? board.board;
+  const groupList = displayedBoard.groups;
+  const isEmpty =
+    groupList.length === 0 &&
+    displayedBoard.ungrouped.length === 0 &&
+    displayedBoard.ungroupedCompleted.length === 0;
 
   const groupSortIds = useMemo(
     () => groupList.map((group) => `group:${group.id}`),
@@ -210,10 +428,31 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
             </span>
           )}
         </div>
-        <Button size="sm" onClick={() => openCreateTask(null)}>
+        <DropdownMenu
+          ariaLabel="Create"
+          connected
+          triggerClassName={(open) =>
+            `!inline-flex !w-48 !justify-center !items-center !gap-1.5 !border-0 !bg-linear-to-br !from-theme-accent !to-theme-secondary !px-4 !py-2 !font-semibold !text-ink-base !shadow-[0_0_20px_rgb(var(--theme-rgb)/0.3)] !transition-[background-color,border-color,border-radius] duration-150 hover:!text-ink-base ${
+              open ? "!rounded-t-full !rounded-b-none" : "!rounded-full"
+            }`
+          }
+          items={[
+            {
+              id: "group",
+              label: "Create new group",
+              onSelect: openGroupDialog,
+            },
+            {
+              id: "task",
+              label: "Create new task",
+              dividerBefore: true,
+              onSelect: () => openCreateTask(null),
+            },
+          ]}
+        >
           <Icon name="plus" className="h-4 w-4" />
-          New task
-        </Button>
+          Create
+        </DropdownMenu>
       </div>
 
       {isEmpty ? (
@@ -222,26 +461,28 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
             icon="layers"
             title="No groups yet – create your first group"
             description="Groups are personal containers for your tasks — “This Week”, “In Review”, “Backlog”. Tasks without a group live in Ungrouped."
-            action={
-              <Button size="sm" onClick={openGroupDialog}>
-                <Icon name="plus" className="h-4 w-4" />
-                Create your first group
-              </Button>
-            }
           />
         </div>
       ) : (
         <DndContext
+          id="grouped-personal-task-board"
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetection}
           accessibility={{ announcements }}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
+          onDragCancel={() => updateDragPreview(null)}
         >
           <div className="flex items-start gap-4 overflow-x-auto pb-6">
             <UngroupedSection
-              tasks={board.board.ungrouped}
+              tasks={displayedBoard.ungrouped}
+              completedTasks={displayedBoard.ungroupedCompleted}
               onEditTask={openEditTask}
               onDeleteTask={setTaskToDelete}
+              onToggleComplete={(task) =>
+                void board.setTaskCompleted(task.id, task.completedAt === null)
+              }
               onAddTask={() => openCreateTask(null)}
             />
 
@@ -262,18 +503,12 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
                   onAddTask={() => openCreateTask(group.id)}
                   onEditTask={openEditTask}
                   onDeleteTask={setTaskToDelete}
+                  onToggleComplete={(task) =>
+                    void board.setTaskCompleted(task.id, task.completedAt === null)
+                  }
                 />
               ))}
             </SortableContext>
-
-            <button
-              type="button"
-              onClick={openGroupDialog}
-              className={`flex w-44 shrink-0 flex-col items-center justify-center gap-2 self-start rounded-3xl border border-dashed border-ink-border bg-ink-surface/40 py-10 text-slate-400 transition-colors hover:border-theme-accent/50 hover:text-theme-accent ${focusRing}`}
-            >
-              <Icon name="plus" className="h-5 w-5" />
-              <span className="text-xs font-semibold">New group</span>
-            </button>
           </div>
         </DndContext>
       )}
@@ -382,7 +617,10 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
             task{groupToDelete?.taskCount === 1 ? "" : "s"}.
           </p>
           <ul className="mt-3 space-y-1.5">
-            {(groupToDelete?.tasks ?? []).slice(0, 5).map((task) => (
+            {(groupToDelete?.tasks ?? [])
+              .concat(groupToDelete?.completedTasks ?? [])
+              .slice(0, 5)
+              .map((task) => (
               <li key={task.id} className="flex items-center gap-2 text-xs text-slate-400">
                 <Icon name="checked" className="h-3.5 w-3.5 shrink-0 text-theme-accent" />
                 <span className="truncate" title={task.taskName}>
@@ -429,7 +667,7 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
         }
       >
         <p className="text-sm text-slate-400">
-          Its content blocks and checklist will be deleted too. This cannot be undone.
+          This will be removed permanently. This cannot be undone.
         </p>
       </Dialog>
     </div>

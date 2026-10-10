@@ -8,16 +8,14 @@ import Dialog from "@/components/ui/Dialog";
 import { Field, Input, Textarea } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { createTaskAction, updateTaskAction } from "../actions/task.actions";
-import type { TaskBlockDto, TaskResponseDto } from "../dto/task-response.dto";
+import type { TaskResponseDto } from "../dto/task-response.dto";
 import { useTaskForm } from "../hooks/use-task-form";
 import {
   DESCRIPTION_MAX,
   DIFFICULTY_VALUES,
   TASK_NAME_MAX,
-  type ContentBlockInput,
   type Difficulty,
 } from "../schemas/task.schema";
-import ContentBlockEditor from "./ContentBlockEditor";
 import { difficultyLabel } from "./DifficultyBadge";
 
 const DIFFICULTY_STYLES: Record<
@@ -52,16 +50,6 @@ function toLocalInput(iso: string | null): string {
 
 function isPastDate(date: Date): boolean {
   return date.getTime() < Date.now();
-}
-
-function blocksToInputs(blocks: TaskBlockDto[]): ContentBlockInput[] {
-  return blocks.map((block) =>
-    block.type === "CHECKBOX"
-      ? { type: "CHECKBOX", text: block.text, isChecked: block.isChecked ?? false }
-      : block.type === "LIST_ITEM"
-        ? { type: "LIST_ITEM", text: block.text }
-        : { type: "NOTE", text: block.text },
-  );
 }
 
 type Props = {
@@ -108,7 +96,6 @@ export default function TaskFormDialog({
             difficulty: task.difficulty,
             dueDate: toLocalInput(task.dueDate),
             groupId: task.groupId,
-            blocks: blocksToInputs(task.blocks),
           }
         : { groupId: defaultGroupId ?? null },
     );
@@ -117,7 +104,6 @@ export default function TaskFormDialog({
   const nameError = showFieldError("taskName") ?? errors.taskName;
   const dueDateError = showFieldError("dueDate") ?? errors.dueDate;
   const descriptionError = showFieldError("description") ?? errors.description;
-  const blocksError = showFieldError("blocks") ?? errors.blocks;
 
   const dueDateValue = values.dueDate ? new Date(values.dueDate) : null;
   const overdue =
@@ -166,7 +152,7 @@ export default function TaskFormDialog({
       title={task ? "Edit task" : "New task"}
       description={
         task
-          ? "Update the details, contents, and placement of this task."
+          ? "Update the details and placement of this task."
           : "Capture a task, then drop it into a group on the board."
       }
       footer={
@@ -266,12 +252,6 @@ export default function TaskFormDialog({
             ))}
           </select>
         </Field>
-
-        <ContentBlockEditor
-          blocks={values.blocks}
-          onChange={(next) => setField("blocks", next)}
-          error={blocksError}
-        />
       </form>
     </Dialog>
   );

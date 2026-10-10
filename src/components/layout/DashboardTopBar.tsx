@@ -97,7 +97,7 @@ export default function DashboardTopBar({ pathname, email, onToggleSidebar }: Pr
         <div
           role="menu"
           aria-label="Profile"
-          className={`hud-card absolute right-0 top-full z-50 mt-2 w-56 origin-top-right rounded-2xl p-2 transition-[opacity,transform,visibility] duration-150 ${
+          className={`hud-card absolute right-0 top-full z-50 mt-2 w-56 origin-top-right rounded-2xl p-2 transition-[opacity,translate,scale,visibility] duration-150 ${
             menuOpen
               ? "opacity-100"
               : "pointer-events-none invisible translate-y-1 scale-95 opacity-0"

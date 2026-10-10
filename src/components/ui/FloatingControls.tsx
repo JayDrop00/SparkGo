@@ -107,7 +107,7 @@ export default function FloatingControls() {
         role="dialog"
         aria-label="Display settings"
         onKeyDown={onPanelKeyDown}
-        className={`hud-card absolute bottom-full right-0 mb-3 w-60 max-w-[calc(100vw-2rem)] origin-bottom-right rounded-2xl p-3 transition-[opacity,transform,visibility] duration-200 motion-reduce:transition-none ${
+        className={`hud-card absolute bottom-full right-0 mb-3 w-60 max-w-[calc(100vw-2rem)] origin-bottom-right rounded-2xl p-3 transition-[opacity,translate,scale,visibility] duration-200 motion-reduce:transition-none ${
           open
             ? "opacity-100"
             : "pointer-events-none invisible translate-y-1 scale-95 opacity-0"

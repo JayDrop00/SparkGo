@@ -55,6 +55,7 @@ export type Database = {
           difficulty: Database["public"]["Enums"]["task_difficulty"];
           due_date: string | null;
           position: number;
+          completed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -67,6 +68,7 @@ export type Database = {
           difficulty?: Database["public"]["Enums"]["task_difficulty"];
           due_date?: string | null;
           position: number;
+          completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -79,6 +81,7 @@ export type Database = {
           difficulty?: Database["public"]["Enums"]["task_difficulty"];
           due_date?: string | null;
           position?: number;
+          completed_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -92,62 +95,20 @@ export type Database = {
           },
         ];
       };
-      task_content_blocks: {
-        Row: {
-          id: string;
-          task_id: string;
-          block_type: Database["public"]["Enums"]["content_block_type"];
-          text: string;
-          is_checked: boolean | null;
-          position: number;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          task_id: string;
-          block_type: Database["public"]["Enums"]["content_block_type"];
-          text?: string;
-          is_checked?: boolean | null;
-          position: number;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          task_id?: string;
-          block_type?: Database["public"]["Enums"]["content_block_type"];
-          text?: string;
-          is_checked?: boolean | null;
-          position?: number;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "task_content_blocks_task_id_fkey";
-            columns: ["task_id"];
-            isOneToOne: false;
-            referencedRelation: "tasks";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
     };
     Views: Record<string, never>;
     Functions: {
-      create_task_with_blocks: {
+      create_task: {
         Args: {
           p_task_name: string;
           p_description?: string;
           p_difficulty?: Database["public"]["Enums"]["task_difficulty"];
           p_due_date?: string;
           p_group_id?: string;
-          p_blocks?: Json;
         };
         Returns: Json;
       };
-      update_task_with_blocks: {
+      update_task: {
         Args: {
           p_task_id: string;
           p_task_name: string;
@@ -155,7 +116,6 @@ export type Database = {
           p_difficulty?: Database["public"]["Enums"]["task_difficulty"];
           p_due_date?: string;
           p_group_id?: string;
-          p_blocks?: Json;
         };
         Returns: Json;
       };
@@ -184,7 +144,6 @@ export type Database = {
     };
     Enums: {
       task_difficulty: "EASY" | "MEDIUM" | "HARD" | "VERY_HARD";
-      content_block_type: "CHECKBOX" | "LIST_ITEM" | "NOTE";
     };
     CompositeTypes: Record<string, never>;
   };

@@ -52,19 +52,8 @@ select t.id,
        t.pos
 from tasks t;
 
-with owner as (
-  select id from auth.users order by created_at desc limit 1
-),
-task as (
-  select id from public.tasks
-  where owner_id = (select id from owner) and task_name = 'Draft Q4 roadmap outline'
-)
-insert into public.task_content_blocks (task_id, block_type, text, is_checked, position)
-select task.id, b.type, b.text, b.checked, b.pos
-from task,
-unnest(array[
-  row('CHECKBOX',  'Collect stakeholder inputs', true::boolean,  0.0)::record,
-  row('CHECKBOX',  'Outline milestones',         false::boolean, 1024.0)::record,
-  row('LIST_ITEM', 'Share draft with the team',  null,           2048.0)::record,
-  row('NOTE',      'Deadline moved to Friday',   null,           3072.0)::record
-]) as b(type, text, checked, pos);
+-- One already-completed task so the "Completed" section has a demo row.
+update public.tasks
+set completed_at = now()
+where owner_id = (select id from auth.users order by created_at desc limit 1)
+  and task_name = 'Buy groceries';

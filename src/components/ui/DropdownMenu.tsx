@@ -11,13 +11,17 @@ export type MenuItem = {
   icon?: IconName;
   danger?: boolean;
   disabled?: boolean;
+  dividerBefore?: boolean;
   onSelect: () => void;
 };
 
 type Props = {
   items: MenuItem[];
   ariaLabel: string;
-  triggerClassName?: string;
+  /** Static classes, or a function of the open state for state-dependent styling. */
+  triggerClassName?: string | ((open: boolean) => string);
+  /** Visually merge the panel into the trigger (no gap, shared edge). */
+  connected?: boolean;
   children?: ReactNode;
 };
 
@@ -25,6 +29,7 @@ export default function DropdownMenu({
   items,
   ariaLabel,
   triggerClassName = "",
+  connected = false,
   children,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -55,6 +60,9 @@ export default function DropdownMenu({
     if (open) menuRef.current?.querySelector("button")?.focus();
   }, [open]);
 
+  const resolvedTriggerClassName =
+    typeof triggerClassName === "function" ? triggerClassName(open) : triggerClassName;
+
   return (
     <div ref={rootRef} className="relative">
       <button
@@ -64,7 +72,7 @@ export default function DropdownMenu({
         aria-expanded={open}
         aria-label={ariaLabel}
         onClick={() => setOpen((value) => !value)}
-        className={`rounded-lg border border-ink-border bg-ink-card/70 p-1.5 text-slate-400 transition-colors hover:border-theme-accent/60 hover:text-white ${focusRing} ${triggerClassName}`}
+        className={`rounded-lg border border-ink-border bg-ink-card/70 p-1.5 text-slate-400 transition-colors hover:border-theme-accent/60 hover:text-white ${focusRing} ${resolvedTriggerClassName}`}
       >
         {children ?? <Icon name="sliders" className="h-4 w-4" />}
       </button>
@@ -72,33 +80,45 @@ export default function DropdownMenu({
         ref={menuRef}
         role="menu"
         aria-label={ariaLabel}
-        className={`hud-card absolute right-0 top-full z-30 mt-2 w-48 origin-top-right rounded-2xl p-1.5 transition-[opacity,transform,visibility] duration-150 ${
+        className={`hud-card absolute right-0 top-full z-30 w-48 origin-top-right p-1.5 transition-[opacity,translate,scale,visibility] duration-150 motion-reduce:transition-none ${
+          connected
+            ? "mt-0 rounded-t-none rounded-b-2xl !border-t-0"
+            : "mt-2 rounded-2xl"
+        } ${
           open
             ? "opacity-100"
             : "pointer-events-none invisible translate-y-1 scale-95 opacity-0"
         }`}
       >
         <HudCorners />
-        {items.map((item) => (
-          <button
+        {items.map((item, index) => (
+          <div
             key={item.id}
-            type="button"
-            role="menuitem"
-            disabled={item.disabled}
-            onClick={() => {
-              setOpen(false);
-              triggerRef.current?.focus();
-              item.onSelect();
-            }}
-            className={`flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2 text-left text-sm font-semibold transition-colors ${
-              item.danger
-                ? "text-red-300 hover:border-red-400/30 hover:bg-red-400/10"
-                : "text-slate-300 hover:bg-ink-border/60 hover:text-white"
-            } ${focusRing} disabled:opacity-40`}
+            className={open ? "animate-menu-item-in motion-reduce:animate-none" : undefined}
+            style={open ? { animationDelay: `${index * 60}ms` } : undefined}
           >
-            {item.icon && <Icon name={item.icon} className="h-4 w-4 shrink-0" />}
-            <span className="truncate">{item.label}</span>
-          </button>
+            {item.dividerBefore && (
+              <div className="mx-2 my-1 h-px bg-ink-border/70" />
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              disabled={item.disabled}
+              onClick={() => {
+                setOpen(false);
+                triggerRef.current?.focus();
+                item.onSelect();
+              }}
+              className={`flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2 text-left text-sm font-semibold transition-colors ${
+                item.danger
+                  ? "text-red-300 hover:border-red-400/30 hover:bg-red-400/10"
+                  : "text-slate-300 hover:bg-ink-border/60 hover:text-white"
+              } ${focusRing} disabled:opacity-40`}
+            >
+              {item.icon && <Icon name={item.icon} className="h-4 w-4 shrink-0" />}
+              <span className="truncate">{item.label}</span>
+            </button>
+          </div>
         ))}
       </div>
     </div>

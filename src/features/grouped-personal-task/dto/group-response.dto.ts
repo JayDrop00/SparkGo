@@ -7,4 +7,5 @@ export type GroupResponseDto = {
   position: number;
   taskCount: number;
   tasks: TaskResponseDto[];
+  completedTasks: TaskResponseDto[];
 };

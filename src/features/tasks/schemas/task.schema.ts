@@ -3,34 +3,9 @@ import { z } from "zod";
 export const DIFFICULTY_VALUES = ["EASY", "MEDIUM", "HARD", "VERY_HARD"] as const;
 export type Difficulty = (typeof DIFFICULTY_VALUES)[number];
 
-export const CONTENT_BLOCK_TYPES = ["CHECKBOX", "LIST_ITEM", "NOTE"] as const;
-export type ContentBlockType = (typeof CONTENT_BLOCK_TYPES)[number];
-
 export const TASK_NAME_MAX = 120;
 export const DESCRIPTION_MAX = 2000;
-export const BLOCK_TEXT_MAX = 2000;
-export const BLOCKS_MAX = 100;
 export const DUE_DATE_GRACE_MS = 60_000;
-
-const blockText = z.string().max(BLOCK_TEXT_MAX);
-
-export const contentBlockSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("CHECKBOX"),
-    text: blockText,
-    isChecked: z.boolean(),
-  }),
-  z.object({
-    type: z.literal("LIST_ITEM"),
-    text: blockText,
-  }),
-  z.object({
-    type: z.literal("NOTE"),
-    text: blockText,
-  }),
-]);
-
-export type ContentBlockInput = z.input<typeof contentBlockSchema>;
 
 const dueDateSchema = z
   .string()
@@ -57,7 +32,6 @@ const taskCoreFields = {
     .nullable(),
   difficulty: z.enum(DIFFICULTY_VALUES).default("MEDIUM"),
   groupId: z.uuid("Invalid group").optional().nullable(),
-  blocks: z.array(contentBlockSchema).max(BLOCKS_MAX, "Too many content blocks"),
 };
 
 export const createTaskSchema = z.object({
@@ -101,6 +75,11 @@ export const moveTaskSchema = z
 
 export const deleteTaskSchema = z.object({
   taskId: z.uuid("Invalid task"),
+});
+
+export const setTaskCompletedSchema = z.object({
+  taskId: z.uuid("Invalid task"),
+  completed: z.boolean(),
 });
 
 export type CreateTaskInput = z.input<typeof createTaskSchema>;

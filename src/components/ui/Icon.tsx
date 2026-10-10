@@ -98,6 +98,16 @@ const PATHS = {
       <circle cx="15" cy="18" r="1" />
     </>
   ),
+  gripHorizontal: (
+    <>
+      <circle cx="6" cy="9" r="1" />
+      <circle cx="12" cy="9" r="1" />
+      <circle cx="18" cy="9" r="1" />
+      <circle cx="6" cy="15" r="1" />
+      <circle cx="12" cy="15" r="1" />
+      <circle cx="18" cy="15" r="1" />
+    </>
+  ),
   chevronDown: <path d="m6 9 6 6 6-6" />,
   chevronUp: <path d="m18 15-6-6-6 6" />,
   chevronRight: <path d="m9 18 6-6-6-6" />,

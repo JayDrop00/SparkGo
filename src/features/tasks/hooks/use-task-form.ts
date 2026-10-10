@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import type { CreateTaskDto } from "../dto/create-task.dto";
 import type { UpdateTaskDto } from "../dto/update-task.dto";
-import type { ContentBlockInput, Difficulty } from "../schemas/task.schema";
+import type { Difficulty } from "../schemas/task.schema";
 import { createTaskSchema, updateTaskSchema } from "../schemas/task.schema";
 import { zodFieldErrors } from "@/utils/action-error";
 
@@ -13,7 +13,6 @@ export type TaskFormValues = {
   difficulty: Difficulty;
   dueDate: string;
   groupId: string | null;
-  blocks: ContentBlockInput[];
 };
 
 export type TaskFormErrors = Record<string, string>;
@@ -25,7 +24,6 @@ function toValues(initial?: Partial<TaskFormValues>): TaskFormValues {
     difficulty: initial?.difficulty ?? "MEDIUM",
     dueDate: initial?.dueDate ?? "",
     groupId: initial?.groupId ?? null,
-    blocks: initial?.blocks ?? [],
   };
 }
 
@@ -65,7 +63,6 @@ export function useTaskForm(
         difficulty: values.difficulty,
         dueDate: values.dueDate || null,
         groupId: values.groupId,
-        blocks: values.blocks,
       };
 
       const input =
@@ -87,10 +84,6 @@ export function useTaskForm(
       for (const [key, messages] of Object.entries(flat)) {
         const rootKey = key.split(".")[0];
         if (!fieldErrors[rootKey]) fieldErrors[rootKey] = messages[0];
-      }
-      if (Object.keys(fieldErrors).length > 0 && !fieldErrors.blocks) {
-        const blockIssue = Object.keys(flat).find((key) => key.startsWith("blocks"));
-        if (blockIssue) fieldErrors.blocks = flat[blockIssue][0];
       }
       return { valid: false, fieldErrors };
     },
@@ -131,7 +124,6 @@ export function useTaskForm(
       difficulty: values.difficulty,
       dueDate: parseDueDate(values.dueDate),
       groupId: values.groupId,
-      blocks: values.blocks,
     }),
     [values],
   );
@@ -144,7 +136,6 @@ export function useTaskForm(
       difficulty: values.difficulty,
       dueDate: parseDueDate(values.dueDate),
       groupId: values.groupId,
-      blocks: values.blocks,
     }),
     [values],
   );

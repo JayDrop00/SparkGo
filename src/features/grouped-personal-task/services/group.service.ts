@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { TaskResponseDto } from "@/features/tasks/dto/task-response.dto";
 import type { BoardResponseDto } from "../dto/board-response.dto";
 import type { DeleteGroupDto } from "../dto/delete-group.dto";
 import type { GroupResponseDto } from "../dto/group-response.dto";
@@ -20,6 +21,7 @@ function toGroupResponse(row: GroupRow): GroupResponseDto {
     position: row.position,
     taskCount: 0,
     tasks: [],
+    completedTasks: [],
   };
 }
 
@@ -40,20 +42,27 @@ export async function getBoard(uid: string): Promise<BoardResponseDto> {
   const byGroup = new Map<string, GroupResponseDto>();
   for (const group of groupList) byGroup.set(group.id, group);
 
-  const ungrouped = [];
-  for (const task of tasks) {
-    if (task.groupId) {
-      const group = byGroup.get(task.groupId);
-      if (group) {
-        group.tasks.push(task);
-        group.taskCount = group.tasks.length;
-        continue;
-      }
+  const ungrouped: TaskResponseDto[] = [];
+  const ungroupedCompleted: TaskResponseDto[] = [];
+  const place = (task: TaskResponseDto, completed: boolean) => {
+    const group = task.groupId ? byGroup.get(task.groupId) : null;
+    if (group) {
+      (completed ? group.completedTasks : group.tasks).push(task);
+      group.taskCount = group.tasks.length + group.completedTasks.length;
+      return;
     }
-    ungrouped.push(task);
-  }
+    (completed ? ungroupedCompleted : ungrouped).push(task);
+  };
 
-  return { groups: groupList, ungrouped };
+  const active = tasks.filter((task) => task.completedAt === null);
+  const completed = tasks
+    .filter((task) => task.completedAt !== null)
+    .sort((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+
+  for (const task of active) place(task, false);
+  for (const task of completed) place(task, true);
+
+  return { groups: groupList, ungrouped, ungroupedCompleted };
 }
 
 export async function createGroup(

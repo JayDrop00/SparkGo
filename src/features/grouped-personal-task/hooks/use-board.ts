@@ -24,8 +24,10 @@ function cloneBoard(state: BoardState): BoardState {
     groups: state.groups.map((group) => ({
       ...group,
       tasks: [...group.tasks],
+      completedTasks: [...group.completedTasks],
     })),
     ungrouped: [...state.ungrouped],
+    ungroupedCompleted: [...state.ungroupedCompleted],
   };
 }
 
@@ -39,11 +41,26 @@ function removeTask(
     const [task] = next.ungrouped.splice(ungroupedIndex, 1);
     return { board: next, task };
   }
+  const completedIndex = next.ungroupedCompleted.findIndex(
+    (task) => task.id === taskId,
+  );
+  if (completedIndex >= 0) {
+    const [task] = next.ungroupedCompleted.splice(completedIndex, 1);
+    return { board: next, task };
+  }
   for (const group of next.groups) {
     const index = group.tasks.findIndex((task) => task.id === taskId);
     if (index >= 0) {
       const [task] = group.tasks.splice(index, 1);
-      group.taskCount = group.tasks.length;
+      group.taskCount = group.tasks.length + group.completedTasks.length;
+      return { board: next, task };
+    }
+    const completedTaskIndex = group.completedTasks.findIndex(
+      (task) => task.id === taskId,
+    );
+    if (completedTaskIndex >= 0) {
+      const [task] = group.completedTasks.splice(completedTaskIndex, 1);
+      group.taskCount = group.tasks.length + group.completedTasks.length;
       return { board: next, task };
     }
   }
@@ -56,22 +73,40 @@ function insertTask(
   groupId: string | null,
   beforeTaskId?: string | null,
   afterTaskId?: string | null,
+  anchorless: "append" | "position" = "append",
 ): BoardState {
   const next = state;
   const placed: TaskResponseDto = { ...task, groupId };
+  const completed = placed.completedAt !== null;
 
-  if (!groupId) {
-    place(next.ungrouped, placed, beforeTaskId, afterTaskId);
-    return next;
-  }
+  const targetLists = (id: string | null): {
+    active: TaskResponseDto[];
+    completed: TaskResponseDto[];
+    bumpCount?: () => void;
+  } => {
+    if (!id) return { active: next.ungrouped, completed: next.ungroupedCompleted };
+    const group = next.groups.find((item) => item.id === id);
+    if (!group) return { active: next.ungrouped, completed: next.ungroupedCompleted };
+    return {
+      active: group.tasks,
+      completed: group.completedTasks,
+      bumpCount: () => {
+        group.taskCount = group.tasks.length + group.completedTasks.length;
+      },
+    };
+  };
 
-  const group = next.groups.find((item) => item.id === groupId);
-  if (!group) {
-    next.ungrouped.push(placed);
-    return next;
+  const target = targetLists(groupId);
+
+  if (completed) {
+    target.completed.unshift(placed);
+    target.completed.sort((a, b) =>
+      (b.completedAt ?? "").localeCompare(a.completedAt ?? ""),
+    );
+  } else {
+    place(target.active, placed, beforeTaskId, afterTaskId, anchorless);
   }
-  place(group.tasks, placed, beforeTaskId, afterTaskId);
-  group.taskCount = group.tasks.length;
+  target.bumpCount?.();
   return next;
 }
 
@@ -80,6 +115,7 @@ function place(
   task: TaskResponseDto,
   beforeTaskId?: string | null,
   afterTaskId?: string | null,
+  anchorless: "append" | "position" = "append",
 ) {
   if (beforeTaskId) {
     const index = list.findIndex((item) => item.id === beforeTaskId);
@@ -92,6 +128,13 @@ function place(
     const index = list.findIndex((item) => item.id === afterTaskId);
     if (index >= 0) {
       list.splice(index + 1, 0, task);
+      return;
+    }
+  }
+  if (anchorless === "position") {
+    const index = list.findIndex((item) => item.position > task.position);
+    if (index >= 0) {
+      list.splice(index, 0, task);
       return;
     }
   }
@@ -166,10 +209,13 @@ export function useBoard(initialBoard: BoardState) {
 
   const upsertTask = useCallback(
     (task: TaskResponseDto) => {
-      const snapshot = boardRef.current;
-      const removed = removeTask(snapshot, task.id);
-      const base = removed ? removed.board : cloneBoard(snapshot);
-      write(insertTask(base, task, task.groupId));
+      const run = () => {
+        const snapshot = boardRef.current;
+        const removed = removeTask(snapshot, task.id);
+        const base = removed ? removed.board : cloneBoard(snapshot);
+        write(insertTask(base, task, task.groupId, null, null, "position"));
+      };
+      queueRef.current = queueRef.current.then(run, run);
     },
     [write],
   );
@@ -265,6 +311,12 @@ export function useBoard(initialBoard: BoardState) {
             next.ungrouped.push(
               ...group.tasks.map((task) => ({ ...task, groupId: null })),
             );
+            next.ungroupedCompleted.push(
+              ...group.completedTasks.map((task) => ({ ...task, groupId: null })),
+            );
+            next.ungroupedCompleted.sort((a, b) =>
+              (b.completedAt ?? "").localeCompare(a.completedAt ?? ""),
+            );
           }
           return next;
         },
@@ -302,6 +354,22 @@ export function useBoard(initialBoard: BoardState) {
     [mutate],
   );
 
+  const setTaskCompleted = useCallback(
+    (taskId: string, completed: boolean) =>
+      mutate(() => taskActions.setTaskCompletedAction({ taskId, completed }), {
+        optimistic: (prev) => {
+          const removed = removeTask(prev, taskId);
+          if (!removed) return prev;
+          const task: TaskResponseDto = {
+            ...removed.task,
+            completedAt: completed ? new Date().toISOString() : null,
+          };
+          return insertTask(removed.board, task, task.groupId, null, null, "position");
+        },
+      }),
+    [mutate],
+  );
+
   const toggleCollapse = useCallback((groupId: string) => {
     setCollapsed((current) => {
       const next = new Set(current);
@@ -326,6 +394,7 @@ export function useBoard(initialBoard: BoardState) {
     deleteGroupWith,
     moveTaskTo,
     deleteTask,
+    setTaskCompleted,
     resync,
   };
 }
