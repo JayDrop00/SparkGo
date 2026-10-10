@@ -69,7 +69,7 @@ export function TaskRowContent({
         {!completed && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <DifficultyBadge difficulty={task.difficulty} />
-            <DueDateText dueDate={task.dueDate} />
+            <DueDateText dueDate={task.dueDate ?? task.deadlineAt} />
           </div>
         )}
       </button>

@@ -94,7 +94,11 @@ export default function TaskFormDialog({
             taskName: task.taskName,
             description: task.description ?? "",
             difficulty: task.difficulty,
-            dueDate: toLocalInput(task.dueDate),
+            deadlineAt: toLocalInput(task.deadlineAt),
+            startAt: toLocalInput(task.startAt),
+            scheduleDurationMinutes: task.startAt && task.endAt
+              ? String(Math.round((new Date(task.endAt).getTime() - new Date(task.startAt).getTime()) / 60_000))
+              : "60",
             groupId: task.groupId,
           }
         : { groupId: defaultGroupId ?? null },
@@ -102,14 +106,12 @@ export default function TaskFormDialog({
   }, [open, task, defaultGroupId, reset]);
 
   const nameError = showFieldError("taskName") ?? errors.taskName;
-  const dueDateError = showFieldError("dueDate") ?? errors.dueDate;
+  const deadlineError = showFieldError("deadlineAt") ?? errors.deadlineAt;
+  const startAtError = showFieldError("startAt") ?? errors.startAt;
   const descriptionError = showFieldError("description") ?? errors.description;
 
-  const dueDateValue = values.dueDate ? new Date(values.dueDate) : null;
-  const overdue =
-    dueDateValue !== null &&
-    !Number.isNaN(dueDateValue.getTime()) &&
-    isPastDate(dueDateValue);
+  const deadlineValue = values.deadlineAt ? new Date(values.deadlineAt) : null;
+  const overdue = deadlineValue !== null && !Number.isNaN(deadlineValue.getTime()) && isPastDate(deadlineValue);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -217,23 +219,52 @@ export default function TaskFormDialog({
           </div>
         </div>
 
-        <Field
-          label="Due date"
-          error={dueDateError}
-          hint={overdue ? undefined : "Optional"}
-        >
-          <div className="flex items-center gap-2">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
+          <Field label="Schedule start" error={startAtError} hint="Optional calendar time">
             <Input
-              name="dueDate"
+              name="startAt"
               type="datetime-local"
-              value={values.dueDate}
-              onChange={(event) => setField("dueDate", event.target.value)}
-              invalid={Boolean(dueDateError)}
+              value={values.startAt}
+              onChange={(event) => setField("startAt", event.target.value)}
+              invalid={Boolean(startAtError)}
               className="font-data text-xs"
             />
-            {overdue && <Badge tone="danger">Overdue</Badge>}
-          </div>
-        </Field>
+          </Field>
+          <Field label="Duration" hint="End time is automatic">
+            <select
+              name="scheduleDurationMinutes"
+              value={values.scheduleDurationMinutes}
+              onChange={(event) => setField("scheduleDurationMinutes", event.target.value)}
+              className="w-full rounded-xl border border-ink-border bg-ink-input px-3 py-3.5 text-sm text-white outline-none transition hover:border-theme-accent/50 focus:border-theme-accent focus:ring-4 focus:ring-theme-accent/10"
+            >
+              {[30, 60, 90, 120, 180, 240].map((minutes) => (
+                <option key={minutes} value={minutes} className="bg-ink-card">
+                  {minutes < 60 ? `${minutes} min` : `${minutes / 60} hr${minutes > 60 ? "s" : ""}`}
+                </option>
+              ))}
+              {![30, 60, 90, 120, 180, 240].includes(Number(values.scheduleDurationMinutes)) && (
+                <option value={values.scheduleDurationMinutes} className="bg-ink-card">Custom · {values.scheduleDurationMinutes} min</option>
+              )}
+            </select>
+          </Field>
+        </div>
+
+        <details open={Boolean(task?.deadlineAt)} className="rounded-xl border border-ink-border/70 px-4 py-3">
+          <summary className="cursor-pointer text-sm font-medium text-slate-300">Add a separate deadline (optional)</summary>
+          <Field label="Deadline" error={deadlineError} hint={overdue ? undefined : "The calendar due date follows the scheduled end time."}>
+            <div className="flex items-center gap-2">
+              <Input
+                name="deadlineAt"
+                type="datetime-local"
+                value={values.deadlineAt}
+                onChange={(event) => setField("deadlineAt", event.target.value)}
+                invalid={Boolean(deadlineError)}
+                className="font-data text-xs"
+              />
+              {overdue && <Badge tone="danger">Overdue</Badge>}
+            </div>
+          </Field>
+        </details>
 
         <Field label="Group" hint="Optional">
           <select

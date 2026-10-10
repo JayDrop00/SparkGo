@@ -11,7 +11,9 @@ export type TaskFormValues = {
   taskName: string;
   description: string;
   difficulty: Difficulty;
-  dueDate: string;
+  deadlineAt: string;
+  startAt: string;
+  scheduleDurationMinutes: string;
   groupId: string | null;
 };
 
@@ -22,7 +24,9 @@ function toValues(initial?: Partial<TaskFormValues>): TaskFormValues {
     taskName: initial?.taskName ?? "",
     description: initial?.description ?? "",
     difficulty: initial?.difficulty ?? "MEDIUM",
-    dueDate: initial?.dueDate ?? "",
+    deadlineAt: initial?.deadlineAt ?? "",
+    startAt: initial?.startAt ?? "",
+    scheduleDurationMinutes: initial?.scheduleDurationMinutes ?? "60",
     groupId: initial?.groupId ?? null,
   };
 }
@@ -32,6 +36,14 @@ function parseDueDate(value: string): string | null | undefined {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toISOString();
+}
+
+function buildScheduledEnd(startAt: string, durationMinutes: string): string | null {
+  if (!startAt) return null;
+  const start = new Date(startAt);
+  if (Number.isNaN(start.getTime())) return startAt;
+  const duration = Number(durationMinutes);
+  return new Date(start.getTime() + (Number.isFinite(duration) && duration > 0 ? duration : 60) * 60_000).toISOString();
 }
 
 export function useTaskForm(
@@ -61,7 +73,9 @@ export function useTaskForm(
         taskName: values.taskName,
         description: values.description || null,
         difficulty: values.difficulty,
-        dueDate: values.dueDate || null,
+        deadlineAt: values.deadlineAt || null,
+        startAt: values.startAt || null,
+        endAt: buildScheduledEnd(values.startAt, values.scheduleDurationMinutes),
         groupId: values.groupId,
       };
 
@@ -122,7 +136,9 @@ export function useTaskForm(
       taskName: values.taskName,
       description: values.description || null,
       difficulty: values.difficulty,
-      dueDate: parseDueDate(values.dueDate),
+      deadlineAt: parseDueDate(values.deadlineAt),
+      startAt: parseDueDate(values.startAt),
+      endAt: buildScheduledEnd(values.startAt, values.scheduleDurationMinutes),
       groupId: values.groupId,
     }),
     [values],
@@ -134,7 +150,9 @@ export function useTaskForm(
       taskName: values.taskName,
       description: values.description || null,
       difficulty: values.difficulty,
-      dueDate: parseDueDate(values.dueDate),
+      deadlineAt: parseDueDate(values.deadlineAt),
+      startAt: parseDueDate(values.startAt),
+      endAt: buildScheduledEnd(values.startAt, values.scheduleDurationMinutes),
       groupId: values.groupId,
     }),
     [values],

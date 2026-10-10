@@ -121,7 +121,28 @@ type FormState = {
   groupId: string | null;
 };
 
-export default function GroupBoard({ initialBoard }: { initialBoard: BoardResponseDto }) {
+function boardVersion(initialBoard: BoardResponseDto): string {
+  const groups = initialBoard.groups.map(({ id, groupName, color, position }) => [id, groupName, color, position]);
+  const tasks = [
+    ...initialBoard.ungrouped,
+    ...initialBoard.ungroupedCompleted,
+    ...initialBoard.groups.flatMap((group) => [...group.tasks, ...group.completedTasks]),
+  ].map((task) => [
+    task.id,
+    task.updatedAt,
+    task.taskName,
+    task.groupId,
+    task.startAt,
+    task.endAt,
+    task.dueDate,
+    task.deadlineAt,
+    task.completedAt,
+    task.position,
+  ]);
+  return JSON.stringify([groups, tasks]);
+}
+
+function GroupBoardContent({ initialBoard }: { initialBoard: BoardResponseDto }) {
   const board = useBoard(initialBoard);
   const [formState, setFormState] = useState<FormState>({
     open: false,
@@ -674,4 +695,8 @@ export default function GroupBoard({ initialBoard }: { initialBoard: BoardRespon
       </Dialog>
     </div>
   );
+}
+
+export default function GroupBoard({ initialBoard }: { initialBoard: BoardResponseDto }) {
+  return <GroupBoardContent key={boardVersion(initialBoard)} initialBoard={initialBoard} />;
 }

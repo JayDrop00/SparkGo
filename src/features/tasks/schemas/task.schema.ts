@@ -32,24 +32,43 @@ const taskCoreFields = {
     .nullable(),
   difficulty: z.enum(DIFFICULTY_VALUES).default("MEDIUM"),
   groupId: z.uuid("Invalid group").optional().nullable(),
+  startAt: dueDateSchema.optional().nullable(),
+  endAt: dueDateSchema.optional().nullable(),
+  deadlineAt: dueDateSchema.optional().nullable(),
 };
+
+function validateSchedule(
+  value: { startAt?: Date | null; endAt?: Date | null },
+  ctx: z.RefinementCtx,
+) {
+  if (Boolean(value.startAt) !== Boolean(value.endAt)) {
+    ctx.addIssue({ code: "custom", path: [value.startAt ? "endAt" : "startAt"], message: "Choose both a start and end time" });
+  } else if (value.startAt && value.endAt && value.endAt <= value.startAt) {
+    ctx.addIssue({ code: "custom", path: ["endAt"], message: "End time must be after start time" });
+  }
+}
 
 export const createTaskSchema = z.object({
   ...taskCoreFields,
-  dueDate: dueDateSchema
+  deadlineAt: dueDateSchema
     .optional()
     .nullable()
     .refine(
       (date) => !date || date.getTime() + DUE_DATE_GRACE_MS > Date.now(),
-      "Due date cannot be in the past",
+      "Deadline cannot be in the past",
     ),
-});
+}).superRefine(validateSchedule);
 
 export const updateTaskSchema = z.object({
   taskId: z.uuid("Invalid task"),
   ...taskCoreFields,
-  dueDate: dueDateSchema.optional().nullable(),
-});
+}).superRefine(validateSchedule);
+
+export const rescheduleTaskSchema = z.object({
+  taskId: z.uuid("Invalid task"),
+  startAt: dueDateSchema.nullable(),
+  endAt: dueDateSchema.nullable(),
+}).superRefine(validateSchedule);
 
 export const moveTaskSchema = z
   .object({
@@ -86,4 +105,6 @@ export type CreateTaskInput = z.input<typeof createTaskSchema>;
 export type CreateTaskData = z.output<typeof createTaskSchema>;
 export type UpdateTaskInput = z.input<typeof updateTaskSchema>;
 export type UpdateTaskData = z.output<typeof updateTaskSchema>;
+export type RescheduleTaskData = z.output<typeof rescheduleTaskSchema>;
+export type RescheduleTaskInput = z.input<typeof rescheduleTaskSchema>;
 export type MoveTaskData = z.output<typeof moveTaskSchema>;

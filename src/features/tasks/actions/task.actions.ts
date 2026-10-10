@@ -5,6 +5,7 @@ import { getSessionUid } from "@/features/auth/services/session.service";
 import type { ActionResult } from "@/types/action-result";
 import { toActionError } from "@/utils/action-error";
 import type { CreateTaskDto } from "../dto/create-task.dto";
+import type { RescheduleTaskDto } from "../dto/reschedule-task.dto";
 import type { DeleteTaskDto, MoveTaskDto } from "../dto/move-task.dto";
 import type { SetTaskCompletedDto } from "../dto/set-task-completed.dto";
 import type { TaskResponseDto } from "../dto/task-response.dto";
@@ -13,6 +14,7 @@ import {
   createTaskSchema,
   deleteTaskSchema,
   moveTaskSchema,
+  rescheduleTaskSchema,
   setTaskCompletedSchema,
   updateTaskSchema,
 } from "../schemas/task.schema";
@@ -35,6 +37,7 @@ export async function createTaskAction(
 
     const task = await taskService.createTask(uid, parsed.data);
     revalidatePath("/tasks");
+    revalidatePath("/calendar");
     return { ok: true, data: task };
   } catch (error) {
     return { ok: false, error: toActionError(error) };
@@ -52,6 +55,22 @@ export async function updateTaskAction(
     if (!parsed.success) return { ok: false, error: toActionError(parsed.error) };
 
     const task = await taskService.updateTask(uid, parsed.data);
+    revalidatePath("/tasks");
+    revalidatePath("/calendar");
+    return { ok: true, data: task };
+  } catch (error) {
+    return { ok: false, error: toActionError(error) };
+  }
+}
+
+export async function rescheduleTaskAction(input: RescheduleTaskDto): Promise<ActionResult<TaskResponseDto>> {
+  try {
+    const uid = await getSessionUid();
+    if (!uid) return UNAUTHENTICATED;
+    const parsed = rescheduleTaskSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: toActionError(parsed.error) };
+    const task = await taskService.rescheduleTask(uid, parsed.data);
+    revalidatePath("/calendar");
     revalidatePath("/tasks");
     return { ok: true, data: task };
   } catch (error) {
@@ -93,6 +112,7 @@ export async function setTaskCompletedAction(
       parsed.data.completed,
     );
     revalidatePath("/tasks");
+    revalidatePath("/calendar");
     return { ok: true, data: task };
   } catch (error) {
     return { ok: false, error: toActionError(error) };

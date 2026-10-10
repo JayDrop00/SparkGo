@@ -54,6 +54,9 @@ export type Database = {
           description: string | null;
           difficulty: Database["public"]["Enums"]["task_difficulty"];
           due_date: string | null;
+          deadline_at: string | null;
+          start_at: string | null;
+          end_at: string | null;
           position: number;
           completed_at: string | null;
           created_at: string;
@@ -67,6 +70,9 @@ export type Database = {
           description?: string | null;
           difficulty?: Database["public"]["Enums"]["task_difficulty"];
           due_date?: string | null;
+          deadline_at?: string | null;
+          start_at?: string | null;
+          end_at?: string | null;
           position: number;
           completed_at?: string | null;
           created_at?: string;
@@ -80,6 +86,9 @@ export type Database = {
           description?: string | null;
           difficulty?: Database["public"]["Enums"]["task_difficulty"];
           due_date?: string | null;
+          deadline_at?: string | null;
+          start_at?: string | null;
+          end_at?: string | null;
           position?: number;
           completed_at?: string | null;
           created_at?: string;
@@ -103,8 +112,10 @@ export type Database = {
           p_task_name: string;
           p_description?: string;
           p_difficulty?: Database["public"]["Enums"]["task_difficulty"];
-          p_due_date?: string;
           p_group_id?: string;
+          p_start_at?: string;
+          p_end_at?: string;
+          p_deadline_at?: string;
         };
         Returns: Json;
       };
@@ -114,8 +125,10 @@ export type Database = {
           p_task_name: string;
           p_description?: string;
           p_difficulty?: Database["public"]["Enums"]["task_difficulty"];
-          p_due_date?: string;
           p_group_id?: string;
+          p_start_at?: string;
+          p_end_at?: string;
+          p_deadline_at?: string;
         };
         Returns: Json;
       };

@@ -6,6 +6,9 @@ export type TaskResponseDto = {
   description: string | null;
   difficulty: Difficulty;
   dueDate: string | null;
+  deadlineAt: string | null;
+  startAt: string | null;
+  endAt: string | null;
   groupId: string | null;
   position: number;
   completedAt: string | null;
