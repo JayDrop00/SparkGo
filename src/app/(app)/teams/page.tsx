@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import EmptyState from "@/components/ui/EmptyState";
 import { createClient } from "@/lib/supabase/server";
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
 export default async function TeamsPage({ searchParams }: {
   searchParams: Promise<{ team?: string; tab?: string }>;
 }) {
+  await connection();
   const params = await searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

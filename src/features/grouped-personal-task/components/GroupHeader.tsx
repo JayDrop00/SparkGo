@@ -104,15 +104,17 @@ export default function GroupHeader({
 
   return (
     <div className="relative border-b border-ink-border/70 p-3">
-      <button
-        type="button"
-        {...dragHandleProps?.attributes}
-        {...dragHandleProps?.listeners}
-        aria-label={`Drag group "${group.groupName}"`}
-        className={`flex h-7 w-16 cursor-grab touch-none items-center justify-center rounded-full border border-ink-border bg-ink-input/80 text-slate-300 transition-colors hover:border-theme-accent/60 hover:text-theme-accent active:cursor-grabbing ${focusRing}`}
-      >
-        <Icon name="gripHorizontal" className="h-5 w-5" />
-      </button>
+      <div className="mb-1.5 flex w-full justify-center">
+        <button
+          type="button"
+          {...dragHandleProps?.attributes}
+          {...dragHandleProps?.listeners}
+          aria-label={`Drag group "${group.groupName}"`}
+          className={`flex h-7 w-16 cursor-grab touch-none items-center justify-center rounded-full border border-ink-border bg-ink-input/80 text-slate-300 transition-colors hover:border-theme-accent/60 hover:text-theme-accent active:cursor-grabbing ${focusRing}`}
+        >
+          <Icon name="gripHorizontal" className="h-5 w-5" />
+        </button>
+      </div>
       <div className="flex items-center gap-1.5">
         <button
           type="button"

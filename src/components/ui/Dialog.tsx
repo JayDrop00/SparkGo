@@ -26,6 +26,11 @@ export default function Dialog({
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +38,7 @@ export default function Dialog({
 
     const panel = panelRef.current;
     const focusable = panel?.querySelector<HTMLElement>(
-      "input, textarea, select, button, [href], [tabindex]:not([tabindex='-1'])",
+      "[autofocus], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([tabindex='-1']), [href], [tabindex]:not([tabindex='-1'])",
     );
     focusable?.focus();
 
@@ -43,15 +48,15 @@ export default function Dialog({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !panel) return;
       const items = Array.from(
         panel.querySelectorAll<HTMLElement>(
-          "input, textarea, select, button, [href], [tabindex]:not([tabindex='-1'])",
+          "input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [href], [tabindex]:not([tabindex='-1'])",
         ),
-      ).filter((item) => !item.hasAttribute("disabled"));
+      ).filter((item) => !item.hasAttribute("disabled") && item.tabIndex >= 0);
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];
@@ -70,7 +75,7 @@ export default function Dialog({
       document.body.style.overflow = previousOverflow;
       previousFocus.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
