@@ -1,42 +1,30 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import SignOutButton from "@/features/auth/components/SignOutButton";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import DashboardOverview from "@/features/dashboard/components/DashboardOverview";
+import TimezoneCookie from "@/features/dashboard/components/TimezoneCookie";
+import type { DashboardScope } from "@/features/dashboard/dto/dashboard.dto";
+import { getDashboardData } from "@/features/dashboard/queries/dashboard.query";
+import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = {
-  title: "Dashboard — SparkGo",
-};
-
-// Session-gated route with no static shell worth prerendering: render per-request.
+export const metadata: Metadata = { title: "Dashboard — SparkGo" };
 export const instant = false;
 
-export default async function DashboardPage() {
+function validTimezone(value: string | undefined): string {
+  if (!value) return "UTC";
+  try { new Intl.DateTimeFormat("en-US", { timeZone: value }); return value; }
+  catch { return "UTC"; }
+}
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ scope?: string; team?: string }> }) {
   await connection();
-
-  return (
-    <section className="mx-auto w-full max-w-6xl">
-      <span className="inline-flex items-center gap-2 rounded-full border border-theme-accent/40 bg-theme-accent/10 px-4 py-1.5 font-data text-xs font-semibold tracking-wide text-theme-accent">
-        SIGNED IN
-      </span>
-      <h1 className="mt-5 font-display text-3xl font-extrabold tracking-wide text-white sm:text-4xl">
-        Dashboard
-      </h1>
-      <p className="mt-2 text-sm leading-6 text-slate-300 sm:text-base">
-        Welcome to SparkGo — your mission control for personal and team tasks.
-      </p>
-
-      <div className="hud-card mt-8 max-w-xl rounded-3xl p-6 sm:p-8">
-        <h2 className="font-display text-lg font-bold tracking-wide text-white">
-          Pick up where you left off
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
-          Head to <span className="font-semibold text-theme-accent">My Task</span> in the
-          sidebar to plan your work in groups like “This Week” or “In Review”.
-        </p>
-      </div>
-
-      <div className="mt-8">
-        <SignOutButton />
-      </div>
-    </section>
-  );
+  const params = await searchParams;
+  const scope: DashboardScope = params.scope === "personal" || params.scope === "team" ? params.scope : "all";
+  const timezone = validTimezone((await cookies()).get("tz")?.value);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/auth?mode=login&next=/dashboard");
+  const data = await getDashboardData(supabase, user.id, scope, timezone, params.team);
+  return <section className="mx-auto w-full max-w-6xl"><TimezoneCookie /><DashboardOverview data={data} userId={user.id} /></section>;
 }

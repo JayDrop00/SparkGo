@@ -12,6 +12,8 @@
 
 # ai
 *.md
+!docs/team-collab/RECON.md
+!docs/team-collab/DEBUGGING.md
 
 # testing
 /coverage

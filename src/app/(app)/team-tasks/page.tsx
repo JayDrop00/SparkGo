@@ -1,19 +1,17 @@
 import type { Metadata } from "next";
-import EmptyState from "@/components/ui/EmptyState";
+import { redirect } from "next/navigation";
+import TeamTaskBoard from "@/features/team-tasks/components/TeamTaskBoard";
+import { getTeamTaskPageData } from "@/features/team-tasks/services/team-task.service";
+import { createClient } from "@/lib/supabase/server";
 
-// Session-gated shell above reads cookies: render per-request.
 export const instant = false;
+export const metadata: Metadata = { title: "Team Task — SparkGo" };
 
-export const metadata: Metadata = {
-  title: "Team Task — SparkGo",
-};
-
-export default function TeamTasksPage() {
-  return (
-    <EmptyState
-      icon="chart"
-      title="Team Task is coming soon"
-      description="Shared team boards will live here once teams are available."
-    />
-  );
+export default async function TeamTasksPage({ searchParams }: { searchParams: Promise<{ team?: string }> }) {
+  const params = await searchParams;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/auth?mode=login&next=/team-tasks");
+  const data = await getTeamTaskPageData(supabase, user.id, params.team);
+  return <TeamTaskBoard data={data} userId={user.id} />;
 }
