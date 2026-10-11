@@ -24,12 +24,7 @@ export async function getTeamPageData(
 ): Promise<TeamPageData> {
   const [membershipResult, incomingResult] = await Promise.all([
     supabase.from("team_members").select("team_id, role").eq("user_id", userId),
-    supabase
-      .from("team_invites")
-      .select("id, team_id, team_name, role, expires_at, created_at")
-      .eq("status", "pending")
-      .gt("expires_at", new Date().toISOString())
-      .order("created_at", { ascending: true }),
+    supabase.rpc("list_my_incoming_team_invites"),
   ]);
 
   if (membershipResult.error) throw membershipResult.error;

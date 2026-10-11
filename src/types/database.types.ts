@@ -284,6 +284,67 @@ export type Database = {
         Update: { task_id?: string; team_id?: string; user_id?: string; assigned_by?: string | null; assigned_at?: string };
         Relationships: [];
       };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          kind: "team_invite" | "task_assigned" | "team_role_changed";
+          title: string;
+          body: string;
+          team_id: string | null;
+          task_id: string | null;
+          invite_id: string | null;
+          created_at: string;
+          read_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          kind: "team_invite" | "task_assigned" | "team_role_changed";
+          title: string;
+          body: string;
+          team_id: string;
+          task_id?: string | null;
+          invite_id?: string | null;
+          created_at?: string;
+          read_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          kind?: "team_invite" | "task_assigned" | "team_role_changed";
+          title?: string;
+          body?: string;
+          team_id?: string;
+          task_id?: string | null;
+          invite_id?: string | null;
+          created_at?: string;
+          read_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_team_id_fkey";
+            columns: ["team_id"];
+            isOneToOne: false;
+            referencedRelation: "teams";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_task_id_fkey";
+            columns: ["task_id"];
+            isOneToOne: false;
+            referencedRelation: "team_tasks";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_invite_id_fkey";
+            columns: ["invite_id"];
+            isOneToOne: false;
+            referencedRelation: "team_invites";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       completion_requests: {
         Row: { id: string; task_id: string; team_id: string; requested_by: string; note: string | null; status: Database["public"]["Enums"]["completion_status"]; auto_approved: boolean; reviewed_by: string | null; review_note: string | null; created_at: string; reviewed_at: string | null };
         Insert: { id?: string; task_id: string; team_id: string; requested_by: string; note?: string | null; status?: Database["public"]["Enums"]["completion_status"]; auto_approved?: boolean; reviewed_by?: string | null; review_note?: string | null; created_at?: string; reviewed_at?: string | null };
@@ -415,6 +476,21 @@ export type Database = {
           expires_at: string;
           created_at: string;
         }[];
+      };
+      list_my_incoming_team_invites: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          id: string;
+          team_id: string;
+          team_name: string;
+          role: Database["public"]["Enums"]["team_role"];
+          expires_at: string;
+          created_at: string;
+        }[];
+      };
+      sync_my_team_invite_notifications: {
+        Args: Record<PropertyKey, never>;
+        Returns: undefined;
       };
     };
     Enums: {

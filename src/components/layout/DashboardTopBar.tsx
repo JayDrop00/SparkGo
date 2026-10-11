@@ -9,6 +9,8 @@ import { focusRing } from "@/components/ui/styles";
 import { createClient } from "@/lib/supabase/client";
 import ProfileDialog from "@/features/profile/components/ProfileDialog";
 import type { ProfileSummaryDto } from "@/features/profile/dto/profile.dto";
+import NotificationButton from "@/features/notifications/components/NotificationButton";
+import type { NotificationFeedDto } from "@/features/notifications/dto/notification-feed.dto";
 import { pageTitle } from "./nav";
 
 type Props = {
@@ -16,10 +18,11 @@ type Props = {
   email: string;
   userId: string;
   profile: ProfileSummaryDto;
+  notifications: NotificationFeedDto;
   onToggleSidebar: () => void;
 };
 
-export default function DashboardTopBar({ pathname, email, userId, profile: initialProfile, onToggleSidebar }: Props) {
+export default function DashboardTopBar({ pathname, email, userId, profile: initialProfile, notifications, onToggleSidebar }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profile, setProfile] = useState(initialProfile);
@@ -88,6 +91,8 @@ export default function DashboardTopBar({ pathname, email, userId, profile: init
       <span className="min-w-0 flex-1 truncate font-display text-sm font-bold tracking-wide text-slate-300">
         {title}
       </span>
+
+      <NotificationButton initialFeed={notifications} />
 
       <div className="relative" ref={menuRef}>
         <button

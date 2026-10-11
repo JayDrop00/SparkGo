@@ -5,15 +5,17 @@ import { useState, type ReactNode } from "react";
 import DashboardSidebar from "./DashboardSidebar";
 import DashboardTopBar from "./DashboardTopBar";
 import type { ProfileSummaryDto } from "@/features/profile/dto/profile.dto";
+import type { NotificationFeedDto } from "@/features/notifications/dto/notification-feed.dto";
 
 type Props = {
   email: string;
   userId: string;
   profile: ProfileSummaryDto;
+  notifications: NotificationFeedDto;
   children: ReactNode;
 };
 
-export default function DashboardShell({ email, userId, profile, children }: Props) {
+export default function DashboardShell({ email, userId, profile, notifications, children }: Props) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -24,6 +26,7 @@ export default function DashboardShell({ email, userId, profile, children }: Pro
         email={email}
         userId={userId}
         profile={profile}
+        notifications={notifications}
         onToggleSidebar={() => setSidebarOpen((value) => !value)}
       />
       <div className="flex min-w-0 flex-1 overflow-x-clip">
