@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import DashboardShell from "@/components/layout/DashboardShell";
 import { ToastProvider } from "@/components/ui/Toast";
 import { getClaimsCached } from "@/features/auth/services/session.service";
+import { getProfileSummary } from "@/features/profile/services/profile.service";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // Session-gated layout: getClaims() reads the clock (session expiry), which is
@@ -19,10 +20,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const email =
     (claims.email as string | undefined) ?? (claims.sub as string | undefined) ?? "Unknown user";
+  const userId = claims.sub as string;
+  const profile = await getProfileSummary(userId);
 
   return (
     <ToastProvider>
-      <DashboardShell email={email}>{children}</DashboardShell>
+      <DashboardShell email={email} userId={userId} profile={profile}>{children}</DashboardShell>
     </ToastProvider>
   );
 }

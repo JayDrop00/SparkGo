@@ -38,7 +38,9 @@ export default function Dialog({
 
     const panel = panelRef.current;
     const focusable = panel?.querySelector<HTMLElement>(
-      "[autofocus], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([tabindex='-1']), [href], [tabindex]:not([tabindex='-1'])",
+      "[autofocus]",
+    ) ?? panel?.querySelector<HTMLElement>(
+      "input:not([disabled]):not([tabindex='-1']), textarea:not([disabled]), select:not([disabled]), button:not([disabled]):not([tabindex='-1']), [href], [tabindex]:not([tabindex='-1'])",
     );
     focusable?.focus();
 

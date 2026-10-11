@@ -7,19 +7,31 @@ import { useRouter } from "next/navigation";
 import Icon from "@/components/ui/Icon";
 import { focusRing } from "@/components/ui/styles";
 import { createClient } from "@/lib/supabase/client";
+import ProfileDialog from "@/features/profile/components/ProfileDialog";
+import type { ProfileSummaryDto } from "@/features/profile/dto/profile.dto";
 import { pageTitle } from "./nav";
 
 type Props = {
   pathname: string;
   email: string;
+  userId: string;
+  profile: ProfileSummaryDto;
   onToggleSidebar: () => void;
 };
 
-export default function DashboardTopBar({ pathname, email, onToggleSidebar }: Props) {
+export default function DashboardTopBar({ pathname, email, userId, profile: initialProfile, onToggleSidebar }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profile, setProfile] = useState(initialProfile);
   const title = pageTitle(pathname);
-  const initial = (email.trim()[0] ?? "U").toUpperCase();
+  const initial = (profile.displayName?.trim()[0] ?? email.trim()[0] ?? "U").toUpperCase();
   const menuRef = useRef<HTMLDivElement>(null);
+  const profileTriggerRef = useRef<HTMLButtonElement>(null);
+
+  function closeProfileDialog() {
+    setProfileOpen(false);
+    window.requestAnimationFrame(() => profileTriggerRef.current?.focus());
+  }
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -38,6 +50,7 @@ export default function DashboardTopBar({ pathname, email, onToggleSidebar }: Pr
   }, [menuOpen]);
 
   return (
+    <>
     <header className="sticky top-0 z-40 flex items-center gap-2 border-b border-ink-border/70 bg-ink-base/85 px-3 py-2.5 backdrop-blur-xl sm:gap-3 sm:px-4">
       <button
         type="button"
@@ -78,6 +91,7 @@ export default function DashboardTopBar({ pathname, email, onToggleSidebar }: Pr
 
       <div className="relative" ref={menuRef}>
         <button
+          ref={profileTriggerRef}
           type="button"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
@@ -85,11 +99,13 @@ export default function DashboardTopBar({ pathname, email, onToggleSidebar }: Pr
           onClick={() => setMenuOpen((value) => !value)}
           className={`flex items-center gap-2 rounded-full border border-ink-border bg-ink-card/70 py-1 pl-1 pr-2.5 transition-colors hover:border-theme-accent/60 ${focusRing}`}
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-linear-to-br from-theme-accent to-theme-secondary font-display text-xs font-black text-ink-base">
-            {initial}
+          <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-theme-accent to-theme-secondary font-display text-xs font-black text-ink-base">
+            {profile.avatarUrl ? (
+              <Image src={profile.avatarUrl} alt="" width={28} height={28} unoptimized className="h-full w-full object-cover" />
+            ) : initial}
           </span>
           <span className="hidden max-w-40 truncate font-data text-xs text-slate-300 sm:inline">
-            {email}
+            {profile.displayName || email}
           </span>
           <Icon name="chevronDown" className="h-3.5 w-3.5 text-slate-400" />
         </button>
@@ -103,22 +119,35 @@ export default function DashboardTopBar({ pathname, email, onToggleSidebar }: Pr
               : "pointer-events-none invisible translate-y-1 scale-95 opacity-0"
           }`}
         >
+          {profile.displayName && <p className="truncate px-2 pt-1.5 text-sm font-semibold text-white">{profile.displayName}</p>}
           <p className="truncate px-2 py-1.5 font-data text-[11px] text-slate-400" title={email}>
             {email}
           </p>
           <button
             type="button"
             role="menuitem"
-            onClick={() => setMenuOpen(false)}
+            onClick={() => {
+              setMenuOpen(false);
+              setProfileOpen(true);
+            }}
             className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-semibold text-slate-300 transition-colors hover:bg-ink-border/60 hover:text-white ${focusRing}`}
           >
             <Icon name="user" className="h-4 w-4" />
-            Signed in
+            Edit profile
           </button>
           <ProfileSignOut onDone={() => setMenuOpen(false)} />
         </div>
       </div>
     </header>
+    <ProfileDialog
+      open={profileOpen}
+      onClose={closeProfileDialog}
+      userId={userId}
+      email={email}
+      profile={profile}
+      onSaved={setProfile}
+    />
+    </>
   );
 }
 

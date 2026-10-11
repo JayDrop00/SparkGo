@@ -4,13 +4,16 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import DashboardSidebar from "./DashboardSidebar";
 import DashboardTopBar from "./DashboardTopBar";
+import type { ProfileSummaryDto } from "@/features/profile/dto/profile.dto";
 
 type Props = {
   email: string;
+  userId: string;
+  profile: ProfileSummaryDto;
   children: ReactNode;
 };
 
-export default function DashboardShell({ email, children }: Props) {
+export default function DashboardShell({ email, userId, profile, children }: Props) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -19,6 +22,8 @@ export default function DashboardShell({ email, children }: Props) {
       <DashboardTopBar
         pathname={pathname}
         email={email}
+        userId={userId}
+        profile={profile}
         onToggleSidebar={() => setSidebarOpen((value) => !value)}
       />
       <div className="flex min-w-0 flex-1 overflow-x-clip">
