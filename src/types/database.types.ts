@@ -273,9 +273,9 @@ export type Database = {
         Relationships: [];
       };
       team_tasks: {
-        Row: { id: string; team_id: string; group_id: string | null; task_name: string; description: string | null; difficulty: Database["public"]["Enums"]["task_difficulty"]; due_at: string | null; status: Database["public"]["Enums"]["team_task_status"]; completed_at: string | null; completed_by: string | null; created_by: string | null; position: number; created_at: string; updated_at: string };
-        Insert: { id?: string; team_id: string; group_id?: string | null; task_name: string; description?: string | null; difficulty?: Database["public"]["Enums"]["task_difficulty"]; due_at?: string | null; status?: Database["public"]["Enums"]["team_task_status"]; completed_at?: string | null; completed_by?: string | null; created_by?: string | null; position: number; created_at?: string; updated_at?: string };
-        Update: { id?: string; team_id?: string; group_id?: string | null; task_name?: string; description?: string | null; difficulty?: Database["public"]["Enums"]["task_difficulty"]; due_at?: string | null; status?: Database["public"]["Enums"]["team_task_status"]; completed_at?: string | null; completed_by?: string | null; created_by?: string | null; position?: number; created_at?: string; updated_at?: string };
+        Row: { id: string; team_id: string; group_id: string | null; task_name: string; description: string | null; difficulty: Database["public"]["Enums"]["task_difficulty"]; due_at: string | null; status: string; completed_at: string | null; completed_by: string | null; started_at: string | null; archived_at: string | null; created_by: string | null; position: number; created_at: string; updated_at: string };
+        Insert: { id?: string; team_id: string; group_id?: string | null; task_name: string; description?: string | null; difficulty?: Database["public"]["Enums"]["task_difficulty"]; due_at?: string | null; status?: string; completed_at?: string | null; completed_by?: string | null; started_at?: string | null; archived_at?: string | null; created_by?: string | null; position: number; created_at?: string; updated_at?: string };
+        Update: { id?: string; team_id?: string; group_id?: string | null; task_name?: string; description?: string | null; difficulty?: Database["public"]["Enums"]["task_difficulty"]; due_at?: string | null; status?: string; completed_at?: string | null; completed_by?: string | null; started_at?: string | null; archived_at?: string | null; created_by?: string | null; position?: number; created_at?: string; updated_at?: string };
         Relationships: [];
       };
       task_assignees: {
@@ -288,7 +288,7 @@ export type Database = {
         Row: {
           id: string;
           user_id: string;
-          kind: "team_invite" | "task_assigned" | "team_role_changed";
+          kind: "team_invite" | "task_assigned" | "team_role_changed" | "team_help_requested";
           title: string;
           body: string;
           team_id: string | null;
@@ -300,7 +300,7 @@ export type Database = {
         Insert: {
           id?: string;
           user_id: string;
-          kind: "team_invite" | "task_assigned" | "team_role_changed";
+          kind: "team_invite" | "task_assigned" | "team_role_changed" | "team_help_requested";
           title: string;
           body: string;
           team_id: string;
@@ -312,7 +312,7 @@ export type Database = {
         Update: {
           id?: string;
           user_id?: string;
-          kind?: "team_invite" | "task_assigned" | "team_role_changed";
+          kind?: "team_invite" | "task_assigned" | "team_role_changed" | "team_help_requested";
           title?: string;
           body?: string;
           team_id?: string;
@@ -349,6 +349,18 @@ export type Database = {
         Row: { id: string; task_id: string; team_id: string; requested_by: string; note: string | null; status: Database["public"]["Enums"]["completion_status"]; auto_approved: boolean; reviewed_by: string | null; review_note: string | null; created_at: string; reviewed_at: string | null };
         Insert: { id?: string; task_id: string; team_id: string; requested_by: string; note?: string | null; status?: Database["public"]["Enums"]["completion_status"]; auto_approved?: boolean; reviewed_by?: string | null; review_note?: string | null; created_at?: string; reviewed_at?: string | null };
         Update: { id?: string; task_id?: string; team_id?: string; requested_by?: string; note?: string | null; status?: Database["public"]["Enums"]["completion_status"]; auto_approved?: boolean; reviewed_by?: string | null; review_note?: string | null; created_at?: string; reviewed_at?: string | null };
+        Relationships: [];
+      };
+      team_task_events: {
+        Row: { id: number; team_id: string; task_id: string; actor_id: string | null; event_type: string; meta: Json; created_at: string };
+        Insert: { id?: number; team_id: string; task_id: string; actor_id?: string | null; event_type: string; meta?: Json; created_at?: string };
+        Update: { id?: number; team_id?: string; task_id?: string; actor_id?: string | null; event_type?: string; meta?: Json; created_at?: string };
+        Relationships: [];
+      };
+      team_task_help_requests: {
+        Row: { id: string; team_id: string; task_id: string; requester_id: string | null; message: string | null; status: string; created_at: string; updated_at: string; resolved_at: string | null; resolved_by: string | null };
+        Insert: { id?: string; team_id: string; task_id: string; requester_id?: string | null; message?: string | null; status?: string; created_at?: string; updated_at?: string; resolved_at?: string | null; resolved_by?: string | null };
+        Update: { id?: string; team_id?: string; task_id?: string; requester_id?: string | null; message?: string | null; status?: string; created_at?: string; updated_at?: string; resolved_at?: string | null; resolved_by?: string | null };
         Relationships: [];
       };
     };
@@ -415,6 +427,25 @@ export type Database = {
       };
       assign_task_members: { Args: { p_task_id: string; p_user_ids: string[] }; Returns: undefined };
       delete_team_group: { Args: { p_group_id: string; p_mode: string }; Returns: undefined };
+      create_team_task_with_assignees: {
+        Args: {
+          p_team_id: string;
+          p_group_id: string | null;
+          p_task_name: string;
+          p_description: string | null;
+          p_difficulty: Database["public"]["Enums"]["task_difficulty"];
+          p_due_at: string | null;
+          p_assignee_ids: string[];
+        };
+        Returns: string;
+      };
+      set_team_task_status: { Args: { p_task_id: string; p_status: string }; Returns: undefined };
+      archive_team_task: { Args: { p_task_id: string; p_archived: boolean }; Returns: undefined };
+      move_team_task: { Args: { p_task_id: string; p_group_id: string | null; p_before_task_id?: string | null; p_after_task_id?: string | null }; Returns: undefined };
+      reorder_team_groups: { Args: { p_team_id: string; p_group_ids: string[] }; Returns: undefined };
+      request_team_task_help: { Args: { p_task_id: string; p_message?: string | null }; Returns: string };
+      update_team_task_help: { Args: { p_request_id: string; p_resolve: boolean }; Returns: undefined };
+      get_team_task_activity: { Args: { p_team_id: string; p_start_at?: string | null; p_end_at?: string | null }; Returns: { tasks_created: number; tasks_completed: number; tasks_started: number; help_requests: number }[] };
       submit_completion_request: { Args: { p_task_id: string; p_note?: string | null }; Returns: undefined };
       cancel_completion_request: { Args: { p_request_id: string }; Returns: undefined };
       review_completion_request: { Args: { p_request_id: string; p_approve: boolean; p_review_note?: string | null }; Returns: undefined };

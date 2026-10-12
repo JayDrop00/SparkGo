@@ -18,6 +18,7 @@ const iconByKind: Record<NotificationItemDto["kind"], IconName> = {
   team_invite: "users",
   task_assigned: "checked",
   team_role_changed: "user",
+  team_help_requested: "bell",
 };
 
 function notificationHref(item: NotificationItemDto) {
@@ -26,6 +27,9 @@ function notificationHref(item: NotificationItemDto) {
   }
   if (item.kind === "team_role_changed") {
     return `/teams?team=${encodeURIComponent(item.teamId)}`;
+  }
+  if (item.kind === "team_help_requested") {
+    return `/team-tasks?team=${encodeURIComponent(item.teamId)}${item.taskId ? `&task=${encodeURIComponent(item.taskId)}` : ""}`;
   }
   return "/teams";
 }

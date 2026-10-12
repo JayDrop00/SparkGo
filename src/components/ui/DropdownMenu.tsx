@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Icon, { type IconName } from "./Icon";
 import HudCorners from "./HudCorners";
 import { focusRing } from "./styles";
@@ -22,6 +23,9 @@ type Props = {
   triggerClassName?: string | ((open: boolean) => string);
   /** Visually merge the panel into the trigger (no gap, shared edge). */
   connected?: boolean;
+  /** Render the panel under document.body so ancestor overflow cannot clip it. */
+  portal?: boolean;
+  placement?: "auto" | "top" | "bottom";
   children?: ReactNode;
 };
 
@@ -30,12 +34,37 @@ export default function DropdownMenu({
   ariaLabel,
   triggerClassName = "",
   connected = false,
+  portal = false,
+  placement = "auto",
   children,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [placedAbove, setPlacedAbove] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = menuRef.current?.offsetWidth || 192;
+    const menuHeight = menuRef.current?.offsetHeight || 0;
+    const gap = connected ? 0 : 8;
+    const left = Math.min(
+      Math.max(8, rect.right - menuWidth),
+      Math.max(8, window.innerWidth - menuWidth - 8),
+    );
+    const below = rect.bottom + gap;
+    const above = rect.top - menuHeight - gap;
+    const fitsBelow = below + menuHeight <= window.innerHeight - 8;
+    const fitsAbove = above >= 8;
+    const placeAbove = placement === "top" || (placement === "auto" && !fitsBelow && fitsAbove);
+    const top = placeAbove ? Math.max(8, above) : below;
+    setPlacedAbove(placeAbove);
+    setMenuPosition({ top, left });
+  }, [connected, placement]);
 
   useEffect(() => {
     if (!open) return;
@@ -46,15 +75,28 @@ export default function DropdownMenu({
       }
     };
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
     };
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("pointerdown", onPointerDown);
+    if (portal) {
+      document.addEventListener("scroll", updateMenuPosition, true);
+      window.addEventListener("resize", updateMenuPosition);
+    }
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
+      if (portal) {
+        document.removeEventListener("scroll", updateMenuPosition, true);
+        window.removeEventListener("resize", updateMenuPosition);
+      }
     };
-  }, [open]);
+  }, [open, portal, updateMenuPosition]);
+
+  useLayoutEffect(() => {
+    if (open && portal) updateMenuPosition();
+  }, [open, portal, updateMenuPosition]);
 
   useEffect(() => {
     if (open) menuRef.current?.querySelector("button")?.focus();
@@ -62,6 +104,53 @@ export default function DropdownMenu({
 
   const resolvedTriggerClassName =
     typeof triggerClassName === "function" ? triggerClassName(open) : triggerClassName;
+
+  const menu = (
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label={ariaLabel}
+      style={portal ? { top: menuPosition.top, left: menuPosition.left } : undefined}
+      className={`hud-card ${portal ? "fixed z-[60]" : "absolute right-0 top-full z-30"} w-48 ${placedAbove ? "origin-bottom-right" : "origin-top-right"} p-1.5 transition-[opacity,translate,scale,visibility] duration-150 motion-reduce:transition-none ${
+        connected
+          ? "mt-0 rounded-t-none rounded-b-2xl !border-t-0"
+          : portal ? "rounded-2xl" : "mt-2 rounded-2xl"
+      } ${
+        open
+          ? "opacity-100"
+          : "pointer-events-none invisible translate-y-1 scale-95 opacity-0"
+      }`}
+    >
+      <HudCorners />
+      {items.map((item, index) => (
+        <div
+          key={item.id}
+          className={open ? "animate-menu-item-in motion-reduce:animate-none" : undefined}
+          style={open ? { animationDelay: `${index * 60}ms` } : undefined}
+        >
+          {item.dividerBefore && <div className="mx-2 my-1 h-px bg-ink-border/70" />}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={item.disabled}
+            onClick={() => {
+              setOpen(false);
+              triggerRef.current?.focus();
+              item.onSelect();
+            }}
+            className={`flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2 text-left text-sm font-semibold transition-colors ${
+              item.danger
+                ? "text-red-300 hover:border-red-400/30 hover:bg-red-400/10"
+                : "text-slate-300 hover:bg-ink-border/60 hover:text-white"
+            } ${focusRing} disabled:opacity-40`}
+          >
+            {item.icon && <Icon name={item.icon} className="h-4 w-4 shrink-0" />}
+            <span className="truncate">{item.label}</span>
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div ref={rootRef} className="relative">
@@ -71,56 +160,17 @@ export default function DropdownMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={ariaLabel}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (!open && portal) updateMenuPosition();
+          setOpen((value) => !value);
+        }}
         className={`rounded-lg border border-ink-border bg-ink-card/70 p-1.5 text-slate-400 transition-colors hover:border-theme-accent/60 hover:text-white ${focusRing} ${resolvedTriggerClassName}`}
       >
         {children ?? <Icon name="sliders" className="h-4 w-4" />}
       </button>
-      <div
-        ref={menuRef}
-        role="menu"
-        aria-label={ariaLabel}
-        className={`hud-card absolute right-0 top-full z-30 w-48 origin-top-right p-1.5 transition-[opacity,translate,scale,visibility] duration-150 motion-reduce:transition-none ${
-          connected
-            ? "mt-0 rounded-t-none rounded-b-2xl !border-t-0"
-            : "mt-2 rounded-2xl"
-        } ${
-          open
-            ? "opacity-100"
-            : "pointer-events-none invisible translate-y-1 scale-95 opacity-0"
-        }`}
-      >
-        <HudCorners />
-        {items.map((item, index) => (
-          <div
-            key={item.id}
-            className={open ? "animate-menu-item-in motion-reduce:animate-none" : undefined}
-            style={open ? { animationDelay: `${index * 60}ms` } : undefined}
-          >
-            {item.dividerBefore && (
-              <div className="mx-2 my-1 h-px bg-ink-border/70" />
-            )}
-            <button
-              type="button"
-              role="menuitem"
-              disabled={item.disabled}
-              onClick={() => {
-                setOpen(false);
-                triggerRef.current?.focus();
-                item.onSelect();
-              }}
-              className={`flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2 text-left text-sm font-semibold transition-colors ${
-                item.danger
-                  ? "text-red-300 hover:border-red-400/30 hover:bg-red-400/10"
-                  : "text-slate-300 hover:bg-ink-border/60 hover:text-white"
-              } ${focusRing} disabled:opacity-40`}
-            >
-              {item.icon && <Icon name={item.icon} className="h-4 w-4 shrink-0" />}
-              <span className="truncate">{item.label}</span>
-            </button>
-          </div>
-        ))}
-      </div>
+      {portal && open && typeof document !== "undefined"
+        ? createPortal(menu, document.body)
+        : menu}
     </div>
   );
 }

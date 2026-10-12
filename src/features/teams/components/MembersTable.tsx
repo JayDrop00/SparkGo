@@ -21,7 +21,7 @@ export default function MembersTable({
   onRemove: (member: MemberResponseDto) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-ink-border bg-ink-card/40">
+    <div className="relative rounded-2xl border border-ink-border bg-ink-card/40">
       <div className="hidden grid-cols-[minmax(0,1fr)_10rem_3rem] gap-4 border-b border-ink-border px-4 py-3 font-data text-[11px] font-semibold uppercase tracking-widest text-slate-500 sm:grid">
         <span>Member</span><span>Role</span><span />
       </div>
@@ -51,7 +51,7 @@ export default function MembersTable({
               </div>
               <div><Badge tone={member.role === "admin" ? "accent" : "neutral"}>{member.role}</Badge></div>
               <div className="flex justify-end">
-                {menuItems.length > 0 && <DropdownMenu ariaLabel={`Actions for ${displayName}`} items={menuItems} />}
+                {menuItems.length > 0 && <DropdownMenu ariaLabel={`Actions for ${displayName}`} items={menuItems} portal placement="top" />}
               </div>
             </li>
           );

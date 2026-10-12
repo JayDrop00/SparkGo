@@ -1,4 +1,4 @@
-export type NotificationKind = "team_invite" | "task_assigned" | "team_role_changed";
+export type NotificationKind = "team_invite" | "task_assigned" | "team_role_changed" | "team_help_requested";
 
 export type NotificationItemDto = {
   id: string;
