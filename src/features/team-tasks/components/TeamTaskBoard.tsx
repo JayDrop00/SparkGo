@@ -12,9 +12,12 @@ import {
   useDroppable,
   useSensor,
   useSensors,
+  type Announcements,
   type CollisionDetection,
+  type DraggableAttributes,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import {
   horizontalListSortingStrategy,
   SortableContext,
@@ -173,22 +176,23 @@ function TaskCard({
   );
 }
 
-function SortableGroupHandle({ group, collapsed, onToggle, onDelete, canManage }: {
+type GroupDragHandleProps = {
+  attributes?: DraggableAttributes;
+  listeners?: SyntheticListenerMap;
+};
+
+function SortableGroupHandle({ group, collapsed, onToggle, onDelete, canManage, dragHandleProps }: {
   group: TeamTaskGroupDto;
   collapsed: boolean;
   onToggle: () => void;
   onDelete: () => void;
   canManage: boolean;
+  dragHandleProps?: GroupDragHandleProps;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
-    id: `group:${group.id}`,
-    disabled: !canManage,
-    data: { kind: "group", groupId: group.id },
-  });
   return (
-    <header ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={`mb-3 rounded-xl border p-3 ${isOver ? "border-theme-accent bg-theme-accent/10" : "border-ink-border bg-ink-base/50"} ${isDragging ? "opacity-50" : ""}`}>
+    <header className="mb-3 rounded-xl border border-ink-border bg-ink-base/50 p-3">
       <div className="flex items-center gap-2">
-        {canManage && <button type="button" aria-label={`Reorder ${group.name}`} {...attributes} {...listeners} className="cursor-grab rounded p-1 text-slate-500 hover:bg-ink-border hover:text-white active:cursor-grabbing"><Icon name="grip" className="h-4 w-4" /></button>}
+        {canManage && <button type="button" aria-label={`Reorder ${group.name}`} {...dragHandleProps?.attributes} {...dragHandleProps?.listeners} className="cursor-grab touch-none rounded p-1 text-slate-500 hover:bg-ink-border hover:text-white active:cursor-grabbing"><Icon name="grip" className="h-4 w-4" /></button>}
         <button type="button" onClick={onToggle} aria-expanded={!collapsed} className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: group.color ?? "#64748b" }} />
           <span className="truncate font-display text-sm font-bold text-white">{group.name}</span>
@@ -232,16 +236,37 @@ function TeamTaskColumn({
   onCompleteTask: (task: TeamTaskDto) => void;
 }) {
   const id = group?.id ?? null;
-  const { setNodeRef, isOver } = useDroppable({ id: `bucket:${id ?? "ungrouped"}`, data: { kind: "bucket", groupId: id } });
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortableNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver: isGroupOver,
+  } = useSortable({
+    id: `group:${group?.id ?? "ungrouped"}`,
+    disabled: !group || !canManage,
+    data: { kind: "group", groupId: id },
+  });
+  const { setNodeRef: setBucketNodeRef, isOver } = useDroppable({
+    id: `bucket:${id ?? "ungrouped"}`,
+    data: { kind: "bucket", groupId: id },
+  });
   const allGroupTasks = allTasks.filter((task) => task.groupId === id && !task.archivedAt);
   const completedCount = allGroupTasks.filter((task) => task.status === "done").length;
   const progress = allGroupTasks.length ? Math.round((completedCount / allGroupTasks.length) * 100) : 0;
   const canDragTasks = canManage && view !== "archived";
 
   return (
-    <section ref={setNodeRef} className={`flex w-[min(21rem,84vw)] shrink-0 flex-col rounded-2xl border p-3 transition-colors ${isOver ? "border-theme-accent/80 bg-theme-accent/[0.04]" : "border-ink-border/80 bg-ink-card/45"}`}>
+    <section
+      ref={group ? setSortableNodeRef : setBucketNodeRef}
+      style={group ? { transform: CSS.Transform.toString(transform), transition } : undefined}
+      className={`flex w-[min(21rem,84vw)] shrink-0 flex-col rounded-2xl border p-3 transition-colors ${isOver || isGroupOver ? "border-theme-accent/80 bg-theme-accent/[0.04]" : "border-ink-border/80 bg-ink-card/45"} ${isDragging ? "opacity-0" : ""}`}
+    >
+      <div ref={group ? setBucketNodeRef : undefined} className="flex min-h-0 flex-1 flex-col">
       {group ? (
-        <SortableGroupHandle group={group} collapsed={collapsed} onToggle={onToggleCollapse} onDelete={() => onDeleteGroup(group)} canManage={canManage && view !== "archived"} />
+        <SortableGroupHandle group={group} collapsed={collapsed} onToggle={onToggleCollapse} onDelete={() => onDeleteGroup(group)} canManage={canManage && view !== "archived"} dragHandleProps={{ attributes, listeners }} />
       ) : (
         <header className="sticky left-0 z-10 mb-3 rounded-xl border border-theme-accent/30 bg-ink-base p-3 shadow-[8px_0_16px_-8px_rgb(0_0_0/0.6)]">
           <div className="flex items-center justify-between gap-2">
@@ -266,6 +291,78 @@ function TeamTaskColumn({
           </div>
         </SortableContext>
       )}
+      </div>
+    </section>
+  );
+}
+
+function TeamTaskColumnDragPreview({
+  group,
+  tasks,
+  allTasks,
+  view,
+  members,
+  now,
+}: {
+  group: TeamTaskGroupDto;
+  tasks: TeamTaskDto[];
+  allTasks: TeamTaskDto[];
+  view: TaskView;
+  members: TeamTaskMemberDto[];
+  now: number;
+}) {
+  const allGroupTasks = allTasks.filter((task) => task.groupId === group.id && !task.archivedAt);
+  const completedCount = allGroupTasks.filter((task) => task.status === "done").length;
+  const progress = allGroupTasks.length ? Math.round((completedCount / allGroupTasks.length) * 100) : 0;
+
+  return (
+    <section
+      aria-hidden="true"
+      className="pointer-events-none flex w-[min(21rem,84vw)] shrink-0 flex-col rounded-2xl border border-theme-accent/80 bg-ink-card p-3 shadow-[0_16px_48px_rgb(0_0_0/0.65)]"
+    >
+      <header className="mb-3 rounded-xl border border-ink-border bg-ink-base/50 p-3">
+        <div className="flex items-center gap-2">
+          <span className="rounded p-1 text-slate-400"><Icon name="grip" className="h-4 w-4" /></span>
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: group.color ?? "#64748b" }} />
+          <span className="min-w-0 flex-1 truncate font-display text-sm font-bold text-white">{group.name}</span>
+          <Icon name="chevronUp" className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+        </div>
+      </header>
+
+      <div className="mb-3 px-1">
+        <div className="flex items-center justify-between text-[10px] text-slate-500">
+          <span>{view === "active" ? `${tasks.length} active` : `${tasks.length} shown`}</span>
+          <span>{completedCount}/{allGroupTasks.length} completed Â· {progress}%</span>
+        </div>
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-ink-base">
+          <div className="h-full rounded-full bg-theme-accent" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+
+      <div className="min-h-24 space-y-2.5">
+        {tasks.map((task) => {
+          const overdue = Boolean(task.dueAt && task.status !== "done" && !task.archivedAt && new Date(task.dueAt).getTime() < now);
+          return (
+            <article key={task.id} className="rounded-xl border border-ink-border bg-ink-base/65 p-3 shadow-sm">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 shrink-0 rounded p-1 text-slate-600"><Icon name="grip" className="h-4 w-4" /></span>
+                <div className="min-w-0 flex-1">
+                  <span className="block break-words text-sm font-semibold text-white">{task.name}</span>
+                  <span className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <StatusPill task={task} />
+                    <Badge tone="neutral">{DIFFICULTY_LABELS[task.difficulty]}</Badge>
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <AvatarStack members={members} ids={task.assigneeIds} />
+                {task.dueAt && <span className={`truncate text-[11px] ${overdue ? "font-semibold text-rose-300" : "text-slate-400"}`}>{overdue ? "Overdue Â· " : "Due "}{formatDate(task.dueAt)}</span>}
+              </div>
+            </article>
+          );
+        })}
+        {tasks.length === 0 && <p className="rounded-lg border border-dashed border-ink-border px-3 py-6 text-center text-xs text-slate-500">No tasks in this group.</p>}
+      </div>
     </section>
   );
 }
@@ -303,14 +400,23 @@ function ActivityCards({ metrics, loading }: { metrics: TeamTaskActivityDto | nu
 
 const collisionDetection: CollisionDetection = (args) => {
   const kind = args.active.data.current?.kind;
-  const allowed = args.droppableContainers.filter((container) => kind === "group"
-    ? container.data.current?.kind === "group" && container.id !== args.active.id
-    : container.data.current?.kind !== "group");
+  const groupContainers = args.droppableContainers.filter((container) =>
+    container.data.current?.kind === "group" &&
+    typeof container.data.current?.groupId === "string",
+  );
   if (kind === "group" && args.pointerCoordinates) {
-    const hits = pointerWithin({ ...args, droppableContainers: allowed });
+    const hits = pointerWithin({
+      ...args,
+      droppableContainers: groupContainers.filter((container) => container.id !== args.active.id),
+    });
     if (hits.length) return hits;
   }
-  return closestCorners({ ...args, droppableContainers: allowed });
+  return closestCorners({
+    ...args,
+    droppableContainers: kind === "group"
+      ? groupContainers
+      : args.droppableContainers.filter((container) => container.data.current?.kind !== "group"),
+  });
 };
 
 export default function TeamTaskBoard({ data, userId, now }: { data: TeamTaskPageData; userId: string; now: number }) {
@@ -326,7 +432,9 @@ export default function TeamTaskBoard({ data, userId, now }: { data: TeamTaskPag
   const [editingTask, setEditingTask] = useState(false);
   const [helpMessage, setHelpMessage] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [groupOrder, setGroupOrder] = useState(() => data.groups.map((group) => group.id));
   const [draggingTask, setDraggingTask] = useState<TeamTaskDto | null>(null);
+  const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [glowingTaskId, setGlowingTaskId] = useState<string | null>(null);
   const [archiveSearch, setArchiveSearch] = useState("");
   const team = data.team;
@@ -363,6 +471,20 @@ export default function TeamTaskBoard({ data, userId, now }: { data: TeamTaskPag
   const selectedTaskOwnRequest = activeRequests.find((request) => request.requesterId === userId) ?? null;
   const pendingReviews = data.requests.filter((request) => request.status === "pending");
 
+  const orderedGroups = useMemo(() => {
+    const groupsById = new Map(data.groups.map((group) => [group.id, group]));
+    const ordered = groupOrder.flatMap((id) => {
+      const group = groupsById.get(id);
+      return group ? [group] : [];
+    });
+    const orderedIds = new Set(ordered.map((group) => group.id));
+    return [...ordered, ...data.groups.filter((group) => !orderedIds.has(group.id))];
+  }, [data.groups, groupOrder]);
+
+  useEffect(() => {
+    setGroupOrder(data.groups.map((group) => group.id));
+  }, [data.groups, teamId]);
+
   useEffect(() => {
     if (!teamId) return;
     let ignore = false;
@@ -387,14 +509,52 @@ export default function TeamTaskBoard({ data, userId, now }: { data: TeamTaskPag
   }, [glowingTaskId]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  async function runMutation(action: () => Promise<{ ok: boolean; error?: { message: string } }>, success: string) {
+  const describeDragItem = (id: string) => {
+    if (id.startsWith("group:")) {
+      const group = data.groups.find((item) => item.id === id.slice("group:".length));
+      return group ? `group ${group.name}` : "group";
+    }
+    if (id.startsWith("task:")) {
+      const task = data.tasks.find((item) => item.id === id.slice("task:".length));
+      return task ? `task ${task.name}` : "task";
+    }
+    if (id === "bucket:ungrouped") return "Ungrouped";
+    if (id.startsWith("bucket:")) {
+      const group = data.groups.find((item) => item.id === id.slice("bucket:".length));
+      return group ? `${group.name}` : "a group";
+    }
+    return "item";
+  };
+
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => `Picked up ${describeDragItem(String(active.id))}.`,
+    onDragOver: ({ over }) =>
+      over
+        ? `Now over ${describeDragItem(String(over.id))}.`
+        : "No longer over a droppable area.",
+    onDragEnd: ({ active, over }) =>
+      over
+        ? `Placed ${describeDragItem(String(active.id))} over ${describeDragItem(String(over.id))}.`
+        : `${describeDragItem(String(active.id))} was dropped outside a droppable area.`,
+    onDragCancel: ({ active }) =>
+      `Dragging was cancelled. ${describeDragItem(String(active.id))} returned to its original position.`,
+  };
+
+  async function runMutation(
+    action: () => Promise<{ ok: boolean; error?: { message: string } }>,
+    success: string,
+    onError?: () => void,
+  ) {
     startTransition(async () => {
       const result = await action();
-      if (!result.ok) toast.error(result.error?.message ?? "Could not save changes.");
+      if (!result.ok) {
+        onError?.();
+        toast.error(result.error?.message ?? "Could not save changes.");
+      }
       else {
         toast.success(success);
         router.refresh();
@@ -416,6 +576,7 @@ export default function TeamTaskBoard({ data, userId, now }: { data: TeamTaskPag
 
   function handleDragEnd(event: DragEndEvent) {
     setDraggingTask(null);
+    setDraggingGroupId(null);
     const { active, over } = event;
     if (!over || !team) return;
     const activeKind = active.data.current?.kind;
@@ -424,13 +585,18 @@ export default function TeamTaskBoard({ data, userId, now }: { data: TeamTaskPag
       const activeId = String(active.id).slice("group:".length);
       const overId = overKind === "group" ? String(over.id).slice("group:".length) : null;
       if (!overId || overId === activeId) return;
-      const groupIds = data.groups.map((group) => group.id);
+      const groupIds = orderedGroups.map((group) => group.id);
       const from = groupIds.indexOf(activeId);
       const to = groupIds.indexOf(overId);
       if (from < 0 || to < 0) return;
       groupIds.splice(from, 1);
       groupIds.splice(to, 0, activeId);
-      runMutation(() => reorderTeamGroupsAction({ teamId: team.id, groupIds }), "Group order saved.");
+      setGroupOrder(groupIds);
+      runMutation(
+        () => reorderTeamGroupsAction({ teamId: team.id, groupIds }),
+        "Group order saved.",
+        () => setGroupOrder(data.groups.map((group) => group.id)),
+      );
       return;
     }
     if (activeKind !== "task" || !canManage || view === "archived") return;
@@ -495,8 +661,12 @@ export default function TeamTaskBoard({ data, userId, now }: { data: TeamTaskPag
 
   const columns = [
     { id: null, group: null, tasks: visibleTasks.filter((task) => task.groupId === null) },
-    ...data.groups.map((group) => ({ id: group.id, group, tasks: visibleTasks.filter((task) => task.groupId === group.id) })),
+    ...orderedGroups.map((group) => ({ id: group.id, group, tasks: visibleTasks.filter((task) => task.groupId === group.id) })),
   ];
+  const draggingGroup = orderedGroups.find((group) => group.id === draggingGroupId) ?? null;
+  const draggingGroupTasks = draggingGroup
+    ? columns.find((column) => column.id === draggingGroup.id)?.tasks ?? []
+    : [];
 
   return (
     <div className="min-w-0 space-y-6">
@@ -566,19 +736,41 @@ export default function TeamTaskBoard({ data, userId, now }: { data: TeamTaskPag
             id="team-task-workspace-board"
             sensors={sensors}
             collisionDetection={collisionDetection}
+            accessibility={{ announcements }}
             onDragStart={(event) => {
-              if (event.active.data.current?.kind === "task") setDraggingTask(data.tasks.find((task) => task.id === event.active.data.current?.taskId) ?? null);
+              if (event.active.data.current?.kind === "task") {
+                setDraggingGroupId(null);
+                setDraggingTask(data.tasks.find((task) => task.id === event.active.data.current?.taskId) ?? null);
+              } else if (event.active.data.current?.kind === "group") {
+                setDraggingTask(null);
+                setDraggingGroupId(String(event.active.data.current.groupId));
+              }
             }}
-            onDragCancel={() => setDraggingTask(null)}
+            onDragCancel={() => {
+              setDraggingTask(null);
+              setDraggingGroupId(null);
+            }}
             onDragEnd={handleDragEnd}
           >
             <div className="flex max-w-full items-start gap-3 overflow-x-auto pb-5">
-              <div className="sticky left-0 z-20 shrink-0 self-start"><TeamTaskColumn group={null} tasks={columns[0].tasks} allTasks={data.tasks} now={now} view={view} members={data.members} canManage={canManage} collapsed={false} glowingTaskId={glowingTaskId} onToggleCollapse={() => undefined} onDeleteGroup={() => undefined} onOpenTask={openTask} onStartTask={(task) => runMutation(() => setTeamTaskStatusAction({ taskId: task.id, status: "in_progress" }), "Work started.")} onCompleteTask={(task) => runMutation(() => setTeamTaskStatusAction({ taskId: task.id, status: "done" }), "Task completed.")} /></div>
-              <SortableContext items={data.groups.map((group) => `group:${group.id}`)} strategy={horizontalListSortingStrategy}>
+              <div className="sticky left-0 z-30 shrink-0 self-start rounded-3xl bg-ink-base pr-2 shadow-[8px_0_16px_-8px_rgb(0_0_0/0.6)]"><TeamTaskColumn group={null} tasks={columns[0].tasks} allTasks={data.tasks} now={now} view={view} members={data.members} canManage={canManage} collapsed={false} glowingTaskId={glowingTaskId} onToggleCollapse={() => undefined} onDeleteGroup={() => undefined} onOpenTask={openTask} onStartTask={(task) => runMutation(() => setTeamTaskStatusAction({ taskId: task.id, status: "in_progress" }), "Work started.")} onCompleteTask={(task) => runMutation(() => setTeamTaskStatusAction({ taskId: task.id, status: "done" }), "Task completed.")} /></div>
+              <SortableContext items={orderedGroups.map((group) => `group:${group.id}`)} strategy={horizontalListSortingStrategy}>
                 {columns.slice(1).map(({ group, tasks }) => group && <TeamTaskColumn key={group.id} group={group} tasks={tasks} allTasks={data.tasks} now={now} view={view} members={data.members} canManage={canManage} collapsed={collapsedGroups.has(group.id)} glowingTaskId={glowingTaskId} onToggleCollapse={() => setCollapsedGroups((current) => { const next = new Set(current); if (next.has(group.id)) next.delete(group.id); else next.add(group.id); return next; })} onDeleteGroup={deleteGroup} onOpenTask={openTask} onStartTask={(task) => runMutation(() => setTeamTaskStatusAction({ taskId: task.id, status: "in_progress" }), "Work started.")} onCompleteTask={(task) => runMutation(() => setTeamTaskStatusAction({ taskId: task.id, status: "done" }), "Task completed.")} />)}
               </SortableContext>
             </div>
-            <DragOverlay>{draggingTask && <div className="w-72 rotate-1 rounded-xl border border-theme-accent/60 bg-ink-card p-3 text-sm font-semibold text-white shadow-xl">{draggingTask.name}</div>}</DragOverlay>
+            <DragOverlay>
+              {draggingGroup && (
+                <TeamTaskColumnDragPreview
+                  group={draggingGroup}
+                  tasks={draggingGroupTasks}
+                  allTasks={data.tasks}
+                  view={view}
+                  members={data.members}
+                  now={now}
+                />
+              )}
+              {draggingTask && <div className="w-72 rotate-1 rounded-xl border border-theme-accent/60 bg-ink-card p-3 text-sm font-semibold text-white shadow-xl">{draggingTask.name}</div>}
+            </DragOverlay>
           </DndContext>
         )}
       </section>
