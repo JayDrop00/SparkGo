@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
@@ -20,6 +20,7 @@ export default function TeamTaskCreateDialog({
   groups,
   members,
   userId,
+  defaultGroupId,
 }: {
   open: boolean;
   onClose: () => void;
@@ -27,16 +28,24 @@ export default function TeamTaskCreateDialog({
   groups: TeamTaskGroupDto[];
   members: TeamTaskMemberDto[];
   userId: string;
+  defaultGroupId?: string | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [taskName, setTaskName] = useState("");
   const [description, setDescription] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("MEDIUM");
-  const [groupId, setGroupId] = useState("");
+  const [groupId, setGroupId] = useState(defaultGroupId ?? "");
   const [dueAt, setDueAt] = useState("");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(members.some((member) => member.id === userId) ? [userId] : []);
   const toast = useToast();
   const router = useRouter();
+
+  // Keep groupId in sync if defaultGroupId changes when opening
+  useEffect(() => {
+    if (open) {
+      setGroupId(defaultGroupId ?? "");
+    }
+  }, [open, defaultGroupId]);
 
   function close() {
     if (pending) return;
@@ -44,7 +53,7 @@ export default function TeamTaskCreateDialog({
     setTaskName("");
     setDescription("");
     setDifficulty("MEDIUM");
-    setGroupId("");
+    setGroupId(defaultGroupId ?? "");
     setDueAt("");
     setAssigneeIds(members.some((member) => member.id === userId) ? [userId] : []);
   }
