@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/Toast";
 import type { ActionResult } from "@/types/action-result";
 import { changeMemberRoleAction, deleteTeamAction, leaveTeamAction, removeMemberAction, renameTeamAction, transferOwnershipAction } from "../actions/team.actions";
 import { revokeInviteAction } from "../actions/invite.actions";
-import { createTagAction, deleteTagAction, setMemberTagsAction } from "../actions/tag.actions";
+import { assignMemberTagAction, createTagAction, deleteTagAction, unassignMemberTagAction } from "../actions/tag.actions";
 import type { TeamRole } from "../constants";
 import type { TeamPageData } from "../services/team.service";
 import type { MemberResponseDto } from "../dto/member-response.dto";
@@ -111,8 +111,10 @@ export default function TeamWorkspace({ data, userId, initialTab }: {
         if (!result.ok) return { ok: false, message: result.error.message };
         router.refresh();
         return { ok: true };
-      }} onSaveMember={async (userId, tagIds) => {
-        const result = await setMemberTagsAction({ teamId: selectedTeam.id, userId, tagIds });
+      }} onToggleMemberTag={async (memberUserId, tagId, shouldAssign) => {
+        const result = shouldAssign
+          ? await assignMemberTagAction({ teamId: selectedTeam.id, userId: memberUserId, tagId })
+          : await unassignMemberTagAction({ teamId: selectedTeam.id, userId: memberUserId, tagId });
         if (!result.ok) return { ok: false, message: result.error.message };
         router.refresh();
         return { ok: true };

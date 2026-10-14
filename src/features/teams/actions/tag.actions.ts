@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { mapSupabaseError } from "@/lib/supabase/map-error";
 import type { ActionResult } from "@/types/action-result";
 import { toActionError } from "@/utils/action-error";
-import { createTagSchema, deleteTagSchema, setMemberTagsSchema } from "../schemas/tag.schema";
+import { assignMemberTagSchema, createTagSchema, deleteTagSchema } from "../schemas/tag.schema";
 
 type TagMutationData = { teamId: string };
 function invalid<T>(error: { message?: string; code?: string }): ActionResult<T> {
@@ -38,15 +38,35 @@ export async function deleteTagAction(input: unknown): Promise<ActionResult<TagM
   return { ok: true, data: { teamId: parsed.data.teamId } };
 }
 
-export async function setMemberTagsAction(input: unknown): Promise<ActionResult<TagMutationData>> {
-  const parsed = setMemberTagsSchema.safeParse(input);
+export async function assignMemberTagAction(input: unknown): Promise<ActionResult<TagMutationData>> {
+  const parsed = assignMemberTagSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: toActionError(parsed.error) };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return invalid({ message: "NOT_AUTHENTICATED" });
-  const { error } = await supabase.rpc("set_member_tags", {
-    p_team_id: parsed.data.teamId, p_user_id: parsed.data.userId, p_tag_ids: parsed.data.tagIds,
+  const { error } = await supabase.from("member_tags").insert({
+    team_id: parsed.data.teamId,
+    user_id: parsed.data.userId,
+    tag_id: parsed.data.tagId,
+    assigned_by: user.id,
   });
+  if (error && error.code !== "23505") return invalid(error);
+  revalidatePath("/teams");
+  return { ok: true, data: { teamId: parsed.data.teamId } };
+}
+
+export async function unassignMemberTagAction(input: unknown): Promise<ActionResult<TagMutationData>> {
+  const parsed = assignMemberTagSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: toActionError(parsed.error) };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return invalid({ message: "NOT_AUTHENTICATED" });
+  const { error } = await supabase
+    .from("member_tags")
+    .delete()
+    .eq("team_id", parsed.data.teamId)
+    .eq("user_id", parsed.data.userId)
+    .eq("tag_id", parsed.data.tagId);
   if (error) return invalid(error);
   revalidatePath("/teams");
   return { ok: true, data: { teamId: parsed.data.teamId } };

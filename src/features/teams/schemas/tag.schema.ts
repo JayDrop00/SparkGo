@@ -6,8 +6,8 @@ export const createTagSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
 });
 export const deleteTagSchema = z.object({ teamId: z.string().uuid(), tagId: z.string().uuid() });
-export const setMemberTagsSchema = z.object({
+export const assignMemberTagSchema = z.object({
   teamId: z.string().uuid(),
   userId: z.string().uuid(),
-  tagIds: z.array(z.string().uuid()).max(5).refine((ids) => new Set(ids).size === ids.length),
+  tagId: z.string().uuid(),
 });
